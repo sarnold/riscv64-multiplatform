@@ -1,0 +1,5351 @@
+From 09feb750265f9ea942a316e27d477257acd5e739 Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Mon, 11 Jan 2021 04:06:22 +0800
+Subject: [PATCH 65/86] fbdev add
+
+---
+ drivers/media/platform/Kconfig                |    7 +
+ drivers/media/platform/Makefile               |    2 +
+ drivers/media/platform/starfive/Makefile      |    6 +
+ drivers/media/platform/starfive/stf_event.c   |   39 +
+ drivers/media/platform/starfive/stf_isp.c     |  170 +++
+ drivers/media/platform/starfive/stf_isp.h     |   17 +
+ drivers/media/platform/starfive/stf_vin.c     |  764 +++++++++++
+ drivers/video/fbdev/Kconfig                   |   10 +
+ drivers/video/fbdev/Makefile                  |    1 +
+ drivers/video/fbdev/starfive/Kconfig          |   12 +
+ drivers/video/fbdev/starfive/Makefile         |    9 +
+ drivers/video/fbdev/starfive/adv7513.c        |  265 ++++
+ drivers/video/fbdev/starfive/adv7513.h        |   22 +
+ .../fbdev/starfive/starfive_display_dev.c     |  106 ++
+ .../fbdev/starfive/starfive_display_dev.h     |  257 ++++
+ .../video/fbdev/starfive/starfive_displayer.c |  811 ++++++++++++
+ drivers/video/fbdev/starfive/starfive_fb.c    | 1125 +++++++++++++++++
+ drivers/video/fbdev/starfive/starfive_fb.h    |   98 ++
+ drivers/video/fbdev/starfive/starfive_lcdc.c  |  294 +++++
+ drivers/video/fbdev/starfive/starfive_lcdc.h  |  141 +++
+ drivers/video/fbdev/starfive/starfive_vpp.c   |  593 +++++++++
+ drivers/video/fbdev/starfive/starfive_vpp.h   |  194 +++
+ include/video/stf-vin.h                       |  187 +++
+ 23 files changed, 5130 insertions(+)
+ create mode 100644 drivers/media/platform/starfive/Makefile
+ create mode 100644 drivers/media/platform/starfive/stf_event.c
+ create mode 100644 drivers/media/platform/starfive/stf_isp.c
+ create mode 100644 drivers/media/platform/starfive/stf_isp.h
+ create mode 100644 drivers/media/platform/starfive/stf_vin.c
+ mode change 100644 => 100755 drivers/video/fbdev/Kconfig
+ mode change 100644 => 100755 drivers/video/fbdev/Makefile
+ create mode 100644 drivers/video/fbdev/starfive/Kconfig
+ create mode 100644 drivers/video/fbdev/starfive/Makefile
+ create mode 100644 drivers/video/fbdev/starfive/adv7513.c
+ create mode 100644 drivers/video/fbdev/starfive/adv7513.h
+ create mode 100644 drivers/video/fbdev/starfive/starfive_display_dev.c
+ create mode 100644 drivers/video/fbdev/starfive/starfive_display_dev.h
+ create mode 100644 drivers/video/fbdev/starfive/starfive_displayer.c
+ create mode 100644 drivers/video/fbdev/starfive/starfive_fb.c
+ create mode 100644 drivers/video/fbdev/starfive/starfive_fb.h
+ create mode 100644 drivers/video/fbdev/starfive/starfive_lcdc.c
+ create mode 100644 drivers/video/fbdev/starfive/starfive_lcdc.h
+ create mode 100644 drivers/video/fbdev/starfive/starfive_vpp.c
+ create mode 100644 drivers/video/fbdev/starfive/starfive_vpp.h
+ create mode 100755 include/video/stf-vin.h
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 7e152bbb4fa6..7423be6cb98c 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -138,6 +138,13 @@ config VIDEO_STM32_DCMI
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called stm32-dcmi.
+ 
++config VIDEO_STF_VIN
++	tristate "starfive VIC video in support"
++	depends on VIDEO_V4L2 && OF
++	help
++	  To compile this driver as a module, choose M here: the module
++	  will be called stf-vin.
++
+ config VIDEO_RENESAS_CEU
+ 	tristate "Renesas Capture Engine Unit (CEU) driver"
+ 	depends on VIDEO_DEV && VIDEO_V4L2
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index 62b6cdc8c730..ecc171bc24ed 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -41,6 +41,8 @@ obj-$(CONFIG_VIDEO_STI_DELTA)		+= sti/delta/
+ 
+ obj-y					+= stm32/
+ 
++obj-y					+= starfive/
++
+ obj-y					+= davinci/
+ 
+ obj-$(CONFIG_VIDEO_SH_VOU)		+= sh_vou.o
+diff --git a/drivers/media/platform/starfive/Makefile b/drivers/media/platform/starfive/Makefile
+new file mode 100644
+index 000000000000..e11facdcd148
+--- /dev/null
++++ b/drivers/media/platform/starfive/Makefile
+@@ -0,0 +1,6 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# Makefile for RTC class/drivers.
++#
++
++obj-$(CONFIG_VIDEO_STF_VIN) += stf_vin.o stf_event.o stf_isp.o
+diff --git a/drivers/media/platform/starfive/stf_event.c b/drivers/media/platform/starfive/stf_event.c
+new file mode 100644
+index 000000000000..088354fd700f
+--- /dev/null
++++ b/drivers/media/platform/starfive/stf_event.c
+@@ -0,0 +1,39 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Event for VIC Video In
++ *
++ * Copyright (C) starfivetech.Inc
++ * Authors: Xing Tang <eric.tang@starfivetech.com>
++ *
++ */
++#include <linux/notifier.h>
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/fs.h>
++
++static ATOMIC_NOTIFIER_HEAD(vin_notifier_list);
++
++int vin_notifier_register(struct notifier_block *nb)
++{
++        return atomic_notifier_chain_register(&vin_notifier_list, nb);
++}
++EXPORT_SYMBOL_GPL(vin_notifier_register);
++
++void vin_notifier_unregister(struct notifier_block *nb)
++{
++        atomic_notifier_chain_unregister(&vin_notifier_list, nb);
++}
++EXPORT_SYMBOL_GPL(vin_notifier_unregister);
++
++int vin_notifier_call(unsigned long e, void *v)
++{
++	return atomic_notifier_call_chain(&vin_notifier_list, e, v);
++}
++EXPORT_SYMBOL_GPL(vin_notifier_call);
++
++
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("Starfive VIC video in notifier");
++MODULE_LICENSE("GPL");
++MODULE_SUPPORTED_DEVICE("video");
+diff --git a/drivers/media/platform/starfive/stf_isp.c b/drivers/media/platform/starfive/stf_isp.c
+new file mode 100644
+index 000000000000..77cf7995a495
+--- /dev/null
++++ b/drivers/media/platform/starfive/stf_isp.c
+@@ -0,0 +1,170 @@
++/* /drivers/media/platform/starfive/stf_isp.c
++**
++** This program is free software; you can redistribute it and/or modify
++** it under the terms of the GNU General Public License version 2 as
++** published by the Free Software Foundation.
++**
++** Copyright (C) 2020 StarFive, Inc.
++**
++** PURPOSE:	This files contains the driver of VPP.
++**
++** CHANGE HISTORY:
++**	Version		Date		Author		Description
++**	0.1.0		2020-12-09	starfive		created
++**
++*/
++#include <asm/io.h>
++#include <linux/fb.h>
++#include <linux/module.h>
++#include <video/stf-vin.h>
++
++static inline u32 reg_read(void __iomem * base, u32 reg)
++{
++	return ioread32(base + reg);
++}
++
++static inline void reg_write(void __iomem * base, u32 reg, u32 val)
++{
++	iowrite32(val, base + reg);
++}
++
++void isp_ddr_format_config(struct stf_vin_dev *vin)
++{
++	switch (vin->format.format) {
++	case SRC_COLORBAR_VIN_ISP:
++	    reg_write(vin->base_isp, ISP_REG_DVP_POLARITY_CFG, 0xd);
++		break;
++
++	case SRC_DVP_SENSOR_VIN_ISP:
++	    reg_write(vin->base_isp, ISP_REG_DVP_POLARITY_CFG, 0x08);
++		break;
++
++	default:
++		pr_err("unknown format\n");
++		return;
++	}
++	
++	reg_write(vin->base_isp, ISP_REG_RAW_FORMAT_CFG, 0x000011BB);	// sym_order = [0+:16]
++	reg_write(vin->base_isp, ISP_REG_CFA_MODE, 0x00000030);
++	reg_write(vin->base_isp, ISP_REG_PIC_CAPTURE_START_CFG, 0x00000000); // cro_hstart = [0+:16], cro_vstart = [16+:16]
++}
++
++void isp_ddr_resolution_config(struct stf_vin_dev *vin)
++{
++	u32 val = 0;
++	val = (vin->frame.width-1) + ((vin->frame.height-1)<<16);
++	
++	reg_write(vin->base_isp, ISP_REG_PIC_CAPTURE_END_CFG, val);	// cro_hend = [0+:16], cro_vend = [16+:16]
++	val = (vin->frame.width) + ((vin->frame.height)<<16);
++	reg_write(vin->base_isp, ISP_REG_PIPELINE_XY_SIZE, val);	// ISP pipeline width[0+:16], height[16+:16]
++
++	reg_write(vin->base_isp, ISP_REG_Y_PLANE_START_ADDR, FB_FIRST_ADDR);	// Unscaled Output Image Y Plane Start Address Register
++	reg_write(vin->base_isp, ISP_REG_UV_PLANE_START_ADDR, FB_FIRST_ADDR+(vin->frame.width*vin->frame.height));	// Unscaled Output Image UV Plane Start Address Register
++
++	reg_write(vin->base_isp, ISP_REG_STRIDE, vin->frame.width);	// Unscaled Output Image Stride Register
++
++	reg_write(vin->base_isp, ISP_REG_PIXEL_COORDINATE_GEN, 0x00000010);	// Unscaled Output Pixel Coordinate Generator Mode Register
++	reg_write(vin->base_isp, ISP_REG_PIXEL_AXI_CONTROL, 0x00000000);	
++	reg_write(vin->base_isp, ISP_REG_SS_AXI_CONTROL, 0x00000000);
++	
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION0, 0x0000004D);	// ICCONV_0
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION1, 0x00000096);	// ICCONV_1
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION2, 0x0000001D);	// ICCONV_2
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION3, 0x000001DA);	// ICCONV_3
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION4, 0x000001B6);	// ICCONV_4
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION5, 0x00000070);	// ICCONV_5
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION6, 0x0000009D);	// ICCONV_6
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION7, 0x0000017C);	// ICCONV_7
++	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION8, 0x000001E6);	// ICCONV_8
++	
++	reg_write(vin->base_isp, ISP_REG_CIS_MODULE_CFG, 0x00000000);	
++	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_1, 0x10000022);	//0x30000022);//	
++	reg_write(vin->base_isp, ISP_REG_DC_AXI_ID, 0x00000000);
++	reg_write(vin->base_isp, 0x00000008, 0x00010005);//this reg can not be found in document
++}
++
++void isp_reset(struct stf_vin_dev *vin)
++{
++	u32 isp_enable = ISP_NO_SCALE_ENABLE | ISP_MULTI_FRAME_ENABLE;
++	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_0, (isp_enable | ISP_RESET) /*0x00120002 */ );	// isp_rst = [1]
++	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_0, isp_enable /*0x00120000 */ );	// isp_rst = [1]
++}
++
++void isp_enable(struct stf_vin_dev *vin)
++{
++	u32 isp_enable = ISP_NO_SCALE_ENABLE | ISP_MULTI_FRAME_ENABLE;
++
++	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_0, (isp_enable | ISP_ENBALE) /*0x00120001 */ );	// isp_en = [0]
++	reg_write(vin->base_isp, 0x00000008, 0x00010004);	// CSI immed shadow update
++	reg_write(vin->base_isp, ISP_REG_CSI_INPUT_EN_AND_STATUS, 0x00000001);	// csi_en = [0]
++}
++
++void isp_dvp_2ndframe_config(struct stf_vin_dev *vin)
++{
++	reg_write(vin->base_isp, ISP_REG_Y_PLANE_START_ADDR, FB_SECOND_ADDR);	// Unscaled Output Image Y Plane Start Address Register
++	reg_write(vin->base_isp, ISP_REG_UV_PLANE_START_ADDR, FB_SECOND_ADDR+vin->frame.width*vin->frame.height);	// Unscaled Output Image UV Plane Start Address Register
++	reg_write(vin->base_isp, ISP_REG_STRIDE, vin->frame.width);	// Unscaled Output Image Stride Register
++}
++
++void isp_clk_set(struct stf_vin_dev *vin)
++{
++	void __iomem *clkgen_base = vin->base + VIN_CLKGEN_OFFSET;
++
++	if (vin->isp0) {
++		/* enable isp0 clk */
++		reg_write(clkgen_base, CLK_ISP0_CTRL, 0x80000002);	//ISP0-CLK
++		reg_write(clkgen_base, CLK_ISP0_2X_CTRL, 0x80000000);
++		reg_write(clkgen_base, CLK_ISP0_MIPI_CTRL, 0x80000000);
++
++		reg_write(clkgen_base, CLK_MIPI_RX0_PXL_CTRL, 0x00000008);	//0x00000010);colorbar
++
++		if (vin->format.format == SRC_COLORBAR_VIN_ISP)
++			reg_write(clkgen_base, CLK_C_ISP0_CTRL, 0x00000000);
++		else
++			reg_write(clkgen_base, CLK_C_ISP0_CTRL, 0x02000000);
++	}
++
++	if (vin->isp1) {
++		/* enable isp1 clk */
++		reg_write(clkgen_base, CLK_ISP1_CTRL, 0x80000002);	//ISP1-CLK
++		reg_write(clkgen_base, CLK_ISP1_2X_CTRL, 0x80000000);
++		reg_write(clkgen_base, CLK_ISP1_MIPI_CTRL, 0x80000000);
++
++		reg_write(clkgen_base, CLK_MIPI_RX1_PXL_CTRL, 0x00000008);	//0x00000010);colorbar
++
++		if (vin->format.format == SRC_COLORBAR_VIN_ISP)
++			reg_write(clkgen_base, CLK_C_ISP1_CTRL, 0x00000000);
++		else
++			reg_write(clkgen_base, CLK_C_ISP1_CTRL, 0x02000000);
++	}
++}
++EXPORT_SYMBOL(isp_clk_set);
++
++void isp_ddr_config(struct stf_vin_dev *vin)
++{
++	isp_ddr_format_config(vin);
++	isp_ddr_resolution_config(vin);
++	/* reset isp */
++	isp_reset(vin);
++	/* enable isp */
++	isp_enable(vin);
++	if(SRC_DVP_SENSOR_VIN_ISP == vin->format.format)
++		isp_dvp_2ndframe_config(vin);
++}
++EXPORT_SYMBOL(isp_ddr_config);
++
++void isp_base_addr_config(struct stf_vin_dev *vin)
++{
++	if(vin->isp0)
++		vin->base_isp = ioremap(VIN_ISP0_BASE_ADDR, 0x30000);
++	else if(vin->isp1)
++		vin->base_isp = ioremap(VIN_ISP1_BASE_ADDR, 0x30000);
++    else{
++		return;
++    }
++}
++EXPORT_SYMBOL(isp_base_addr_config);
++
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("loadable ISP driver for StarFive");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/media/platform/starfive/stf_isp.h b/drivers/media/platform/starfive/stf_isp.h
+new file mode 100644
+index 000000000000..91dba96f57bb
+--- /dev/null
++++ b/drivers/media/platform/starfive/stf_isp.h
+@@ -0,0 +1,17 @@
++/*
++ * StarFive isp driver
++ *
++ * Copyright 2020 StarFive Inc.
++ *
++ * Licensed under the GPL-2.
++ */
++
++#ifndef __SF_ISP_H__
++#define __SF_ISP_H__
++
++extern void isp_clk_set(struct stf_vin_dev *vin);
++extern void isp_ddr_config(struct stf_vin_dev *vin);
++extern void isp_base_addr_config(struct stf_vin_dev *vin);
++
++#endif
++
+diff --git a/drivers/media/platform/starfive/stf_vin.c b/drivers/media/platform/starfive/stf_vin.c
+new file mode 100644
+index 000000000000..cb161c349514
+--- /dev/null
++++ b/drivers/media/platform/starfive/stf_vin.c
+@@ -0,0 +1,764 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Driver for VIC Video In
++ *
++ * Copyright (C) starfivetech.Inc
++ * Authors: Xing Tang <eric.tang@starfivetech.com>
++ *
++ */
++
++#include <linux/clk.h>
++#include <linux/completion.h>
++#include <linux/delay.h>
++#include <linux/dmaengine.h>
++#include <linux/init.h>
++#include <linux/interrupt.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++#include <linux/of_reserved_mem.h>
++#include <linux/of_graph.h>
++#include <linux/pinctrl/consumer.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++#include <linux/reset.h>
++#include <linux/io.h>
++#include <linux/dma-mapping.h>
++#include <linux/uaccess.h>
++#include <video/stf-vin.h>
++#include "stf_isp.h"
++
++static DEFINE_MUTEX(vin_mutex);
++static void __iomem *isp0_base;
++
++static inline u32 reg_read(void __iomem * base, u32 reg)
++{
++	return ioread32(base + reg);
++}
++
++static inline void reg_write(void __iomem * base, u32 reg, u32 val)
++{
++	iowrite32(val, base + reg);
++}
++
++static inline void reg_set(void __iomem * base, u32 reg, u32 mask)
++{
++	reg_write(base, reg, reg_read(base, reg) | mask);
++}
++
++static inline void reg_clear(void __iomem * base, u32 reg, u32 mask)
++{
++	reg_write(base, reg, reg_read(base, reg) & ~mask);
++}
++	
++static void reg_set_highest_bit(void __iomem * base, u32 reg)
++{
++    u32 val;
++	val = ioread32(base + reg);
++	val &= ~(0x1 << 31);
++	val |= (0x1 & 0x1) << 31;
++	iowrite32(val, base + reg);
++}
++
++static void reg_clear_highest_bit(void __iomem * base, u32 reg)
++{
++    u32 val;
++	val = ioread32(base + reg);
++	val &= ~(0x1 << 31);
++	val |= (0x0 & 0x1) << 31;
++	iowrite32(val, base + reg);
++}
++
++static int vin_open(struct inode *inode, struct file *file)
++{
++	int ret = 0;
++	mutex_lock(&vin_mutex);
++	
++	struct stf_vin_dev *dev;
++	dev=container_of(inode->i_cdev, struct stf_vin_dev, vin_cdev);
++
++	file->private_data = dev;
++out:
++	mutex_unlock(&vin_mutex);
++	return ret;
++}
++
++static ssize_t vin_read(struct file *file, char __user * buf,
++			size_t count, loff_t * ppos)
++{
++	int ret;
++	int data[2];
++	struct stf_vin_dev *vin = file->private_data;
++	if (vin->condition == false) {
++		if (file->f_flags & O_NONBLOCK)
++			return -EAGAIN;
++		if (wait_event_interruptible(vin->wq, vin->condition != false))
++			return -ERESTARTSYS;
++	}
++	data[0] = vin->odd;
++	data[1] = vin->buf.size;
++
++	mutex_lock(&vin_mutex);
++	ret = copy_to_user(buf, data, count);
++	if (ret != 0) {
++		pr_err("Failed to copy data\n");
++		return -EINVAL;
++	}
++	mutex_unlock(&vin_mutex);
++
++	vin->condition = false;
++
++	return count;
++}
++
++static int vin_release(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static const struct vm_operations_struct mmap_mem_ops = {
++#ifdef CONFIG_HAVE_IOREMAP_PROT
++	.access = generic_access_phys
++#endif
++};
++
++static int vin_mmap(struct file *file, struct vm_area_struct *vma)
++{
++	struct stf_vin_dev *vin = file->private_data;
++	size_t size = vma->vm_end - vma->vm_start;
++
++	vma->vm_ops = &mmap_mem_ops;
++
++	/* Remap-pfn-range will mark the range VM_IO */
++	if (remap_pfn_range(vma,
++			    vma->vm_start,
++			    vin->buf.paddr >> PAGE_SHIFT,
++			    size, vma->vm_page_prot)) {
++		return -EAGAIN;
++	}
++
++	return 0;
++}
++
++static long int vin_ioctl(struct file *file, unsigned int cmd,
++			  long unsigned int arg)
++{
++	return 0;
++}
++
++static const struct file_operations vin_fops = {
++	.owner = THIS_MODULE,
++	.open = vin_open,
++	.read = vin_read,
++	.release = vin_release,
++	.unlocked_ioctl = vin_ioctl,
++	.mmap = vin_mmap,
++};
++
++/*-------------------------------------------------------*/
++/*
++ * NOTE:
++ * 	vic clk driver hasn't complete, using follow functions
++ * 	to reset
++ * TODO: vic clk driver
++ *
++ */
++static int vin_clk_reset(void)
++{
++	void __iomem *vin_clk_gen_base
++	    = ioremap(VIN_CLKGEN_BASE_ADDR, 0x1000);
++	//disable clk
++    reg_clear_highest_bit(vin_clk_gen_base,CLK_VIN_SRC_CTRL);
++    reg_clear_highest_bit(vin_clk_gen_base,CLK_ISP0_AXI_CTRL);
++    reg_clear_highest_bit(vin_clk_gen_base,CLK_ISP0NOC_AXI_CTRL);
++    reg_clear_highest_bit(vin_clk_gen_base,CLK_ISPSLV_AXI_CTRL);
++    reg_clear_highest_bit(vin_clk_gen_base,CLK_ISP1_AXI_CTRL);
++	reg_clear_highest_bit(vin_clk_gen_base,CLK_ISP1NOC_AXI_CTRL);
++    reg_clear_highest_bit(vin_clk_gen_base,CLK_VIN_AXI);
++    reg_clear_highest_bit(vin_clk_gen_base,CLK_VINNOC_AXI);
++
++	//enable clk
++    reg_set_highest_bit(vin_clk_gen_base,CLK_VIN_SRC_CTRL);
++    reg_set_highest_bit(vin_clk_gen_base,CLK_ISP0_AXI_CTRL);
++    reg_set_highest_bit(vin_clk_gen_base,CLK_ISP0NOC_AXI_CTRL);
++    reg_set_highest_bit(vin_clk_gen_base,CLK_ISPSLV_AXI_CTRL);
++    reg_set_highest_bit(vin_clk_gen_base,CLK_ISP1_AXI_CTRL);
++	reg_set_highest_bit(vin_clk_gen_base,CLK_ISP1NOC_AXI_CTRL);
++    reg_set_highest_bit(vin_clk_gen_base,CLK_VIN_AXI);
++    reg_set_highest_bit(vin_clk_gen_base,CLK_VINNOC_AXI);
++
++	return 0;
++}
++
++static int vin_rstgen_assert_reset(void)
++{
++	u32 val;
++	void __iomem *vin_rst_gen_base
++	    = ioremap(VIN_RSTGEN_BASE_ADDR, 0x1000);
++	/*
++	 *      Software_RESET_assert1 (0x11840004)
++	 *      ------------------------------------
++	 *      bit[15]         rstn_vin_src
++	 *      bit[16]         rstn_ispslv_axi
++	 *      bit[17]         rstn_vin_axi
++	 *      bit[18]         rstn_vinnoc_axi
++	 *      bit[19]         rstn_isp0_axi
++	 *      bit[20]         rstn_isp0noc_axi
++	 *      bit[21]         rstn_isp1_axi
++	 *      bit[22]         rstn_isp1noc_axi
++	 *
++	 */
++	u32 val_reg_reset_config = 0x7f8000;
++
++	val = ioread32(vin_rst_gen_base + SOFTWARE_RESET_ASSERT1);
++	val |= val_reg_reset_config;
++	iowrite32(val, vin_rst_gen_base + SOFTWARE_RESET_ASSERT1);
++
++	val = ioread32(vin_rst_gen_base + SOFTWARE_RESET_ASSERT1);
++	val &= ~(val_reg_reset_config);
++
++	iowrite32(val, vin_rst_gen_base + SOFTWARE_RESET_ASSERT1);
++
++	return 0;
++}
++
++/*
++ * TODO: should replace with DTS pinctrl
++ *
++ */
++
++static void dvp_io_pad_func_shared_config(void)
++{
++	void __iomem *vin_rst_gen_base
++	    = ioremap(VIN_IOPAD_BASE_ADDR, 0x1000);
++	/*
++	 * pin: 49 ~ 57
++	 * offset: 0x144 ~ 0x164
++	 * SCFG_funcshare_pad_ctrl
++	 */
++	u32 val_scfg_funcshare_config = 0x800080;
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG81);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG82);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG83);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG84);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG85);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG86);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG87);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG88);
++	iowrite32(val_scfg_funcshare_config, vin_rst_gen_base + IOPAD_REG89);
++}
++
++static int vin_rstgen_clkgen(struct stf_vin_dev *vin)
++{
++	void __iomem *rstgen_base = vin->base + VIN_RSTGEN_OFFSET;
++	void __iomem *clkgen_base = vin->base + VIN_CLKGEN_OFFSET;
++	u32 val_vin_axi_wr_ctrl_reg = 0x02000000;
++
++	/* rst disable */
++	reg_write(rstgen_base, SOFTWARE_RESET_ASSERT0, 0xFFFFFFFF);
++
++	/* rst enable */
++	reg_write(rstgen_base, SOFTWARE_RESET_ASSERT0, 0x0);
++
++	switch (vin->format.format) {
++	case SRC_DVP_SENSOR_VIN_OV5640:
++	case SRC_DVP_SENSOR_VIN:
++		reg_write(clkgen_base, CLK_VIN_AXI_WR_CTRL, val_vin_axi_wr_ctrl_reg);
++		break;
++
++	case SRC_COLORBAR_VIN_ISP:
++	case SRC_DVP_SENSOR_VIN_ISP:
++		isp_clk_set(vin);
++		break;
++
++	case SRC_CSI2RX_VIN_ISP:
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int get_vin_axiwr_pix_ct(struct stf_vin_dev *vin)
++{
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++	u32 value;
++	int cnfg_axiwr_pix_ct = 0;
++
++	value = reg_read(sysctrl_base, SYSCTRL_REG14) & 0x3;
++	if (value == 0)
++		cnfg_axiwr_pix_ct = 2;
++	else if (value == 1)
++		cnfg_axiwr_pix_ct = 4;
++	else if (value == 2)
++		cnfg_axiwr_pix_ct = 8;
++	else
++		return 0;
++
++	return cnfg_axiwr_pix_ct;
++}
++
++static void set_vin_wr_pix_total(struct stf_vin_dev *vin)
++{
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++	int val, pix_ct;
++	pix_ct = get_vin_axiwr_pix_ct(vin);
++	val = (vin->frame.width / pix_ct) - 1;
++	reg_write(sysctrl_base, SYSCTRL_REG12, val);
++}
++
++static int stf_vin_clk_init(struct stf_vin_dev *vin)
++{
++	int ret=0;
++	ret = vin_clk_reset();
++	ret |= vin_rstgen_assert_reset();
++	ret |= vin_rstgen_clkgen(vin);
++	return ret;
++}
++
++static void dvp_vin_ddr_addr_config(struct stf_vin_dev *vin)
++{
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++	u32 val_vin_axi_ctrl_reg = 0x00000003;
++	dev_dbg(vin->dev, "%d: addr: 0x%lx, size: 0x%lx\n", __LINE__,
++		(long)vin->buf.paddr, (long)(vin->buf.paddr + vin->buf.size));
++	/* set the start address of vin and enable */
++	reg_write(sysctrl_base, SYSCTRL_REG10, (long)vin->buf.paddr);
++	reg_write(sysctrl_base, SYSCTRL_REG11, (long)(vin->buf.paddr + vin->buf.size));
++	reg_write(sysctrl_base, SYSCTRL_REG6, val_vin_axi_ctrl_reg);
++}
++
++static int stf_vin_config_set(struct stf_vin_dev *vin)
++{
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++	u32 val_vin_rd_pix_total_reg ;
++	u32 val_vin_rd_vblank_reg ;
++	u32 val_vin_rd_vend_reg ;
++	u32 val_vin_rd_hblank_reg ;
++	u32 val_vin_rd_hend_reg ;
++	u32 val_vin_rw_ctrl_reg ;
++	u32 val_vin_src_channel_reg ;
++	u32 val_vin_axi_ctrl_reg ;
++	u32 val_vin_rw_start_addr_reg ;
++	u32 val_vin_rd_end_addr_reg ;
++	u32 val_vin_wr_pix_reg ;
++
++	switch (vin->format.format) {
++	case SRC_COLORBAR_VIN_ISP:
++		/*vin */
++		val_vin_rd_pix_total_reg = 0x000003BF;
++		val_vin_rd_vblank_reg = 0x0000002D;
++		val_vin_rd_vend_reg = 0x00000464;
++		val_vin_rd_hblank_reg = 0x00000117;
++		val_vin_rd_hend_reg = 0x00000897;
++		val_vin_rw_ctrl_reg = 0x00010300;
++		val_vin_src_channel_reg = 0x00000088;
++		val_vin_axi_ctrl_reg = 0x00000004;
++		
++		reg_write(sysctrl_base, SYSCTRL_REG13, val_vin_rd_pix_total_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG17, val_vin_rd_vblank_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG18, val_vin_rd_vend_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG19, val_vin_rd_hblank_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG20, val_vin_rd_hend_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG14, val_vin_rw_ctrl_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG15, val_vin_src_channel_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG6, val_vin_axi_ctrl_reg);
++		isp_base_addr_config(vin);
++		if(vin->isp0||vin->isp1)
++			isp_ddr_config(vin);
++		break;
++
++	case SRC_DVP_SENSOR_VIN:
++		dvp_io_pad_func_shared_config();
++		/*
++		 * NOTE:
++		 * 0x38: [13:12]
++		 * 00: pix_data[7:0]
++		 * 01: pix_data[9:2]
++		 */
++	    val_vin_rw_ctrl_reg = 0x00010301;
++		reg_write(sysctrl_base, SYSCTRL_REG14, val_vin_rw_ctrl_reg);
++
++		set_vin_wr_pix_total(vin);
++	break;
++
++	case SRC_DVP_SENSOR_VIN_OV5640:
++		dvp_io_pad_func_shared_config();
++	    val_vin_rw_start_addr_reg = FB_FIRST_ADDR;
++		val_vin_rd_end_addr_reg = FB_FIRST_ADDR+0x3f4800;
++		val_vin_wr_pix_reg = 0x000001df;
++		val_vin_rw_ctrl_reg = 0x00001202;
++		val_vin_axi_ctrl_reg = 0x00000003;
++		reg_write(sysctrl_base, SYSCTRL_REG10, val_vin_rw_start_addr_reg);	// First frame address
++		reg_write(sysctrl_base, SYSCTRL_REG11, val_vin_rd_end_addr_reg);	//4bytes 0x887e9000 2bytes 0x883f4800, 1byte 0x881FA400
++		reg_write(sysctrl_base, SYSCTRL_REG12, val_vin_wr_pix_reg);	//       0x000003bf        0x000001df        0x000000ef
++		reg_write(sysctrl_base, SYSCTRL_REG14, val_vin_rw_ctrl_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG6,  val_vin_axi_ctrl_reg);
++		break;
++
++	case SRC_DVP_SENSOR_VIN_ISP:
++		dvp_io_pad_func_shared_config();
++	    val_vin_rw_ctrl_reg = 0x00011300;
++	    val_vin_src_channel_reg = 0x00001100;
++		reg_write(sysctrl_base, SYSCTRL_REG14, val_vin_rw_ctrl_reg);
++		reg_write(sysctrl_base, SYSCTRL_REG15, val_vin_src_channel_reg);
++		isp_base_addr_config(vin);
++		if(vin->isp0||vin->isp1)
++			isp_ddr_config(vin);
++	break;
++
++	case SRC_CSI2RX_VIN_ISP:
++	break;
++
++	default:
++		pr_err("unknown format\n");
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++/*
++ * vin_get_pixel_size:
++ *
++ * size = (width * height * 4)/(cnfg_axiwr_pix_ct / 2)
++ */
++static int vin_get_axiwr_pixel_size(struct stf_vin_dev *vin)
++{
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++	u32 value;
++	int cnfg_axiwr_pix_ct;
++
++	value = reg_read(sysctrl_base, SYSCTRL_REG14) & 0x3;
++	
++	if (value == 0)
++		cnfg_axiwr_pix_ct = 2;
++	else if (value == 1)
++		cnfg_axiwr_pix_ct = 4;
++	else if (value == 2)
++		cnfg_axiwr_pix_ct = 8;
++	else
++		return 0;
++
++	return (vin->frame.height * vin->frame.width * 4) / (cnfg_axiwr_pix_ct /
++							     2);
++}
++
++static int vin_alloc_buf(struct stf_vin_dev *vin)
++{
++	struct vin_buf *buf = &vin->buf;
++	u32 size;
++	if (vin->format.format == SRC_DVP_SENSOR_VIN_OV5640)
++		size = vin->frame.height*vin->frame.width*2;
++	else
++		size = vin_get_axiwr_pixel_size(vin);
++
++	if (size == 0) {
++		dev_err(vin->dev, "size is 0");
++		return -EINVAL;
++	}
++
++	buf->vaddr = dma_alloc_coherent(vin->dev, 2 * size, &buf->paddr,
++					GFP_KERNEL);
++	if (!buf->vaddr) {
++		dev_err(vin->dev,
++			"Failed to allocate buffer of size 0x%x\n", size);
++		return -ENOMEM;
++	}
++
++	buf->size = size;
++
++	return 0;
++}
++
++static void vin_free_buf(struct stf_vin_dev *vin)
++{
++	struct vin_buf *buf = &vin->buf;
++
++	if (buf->vaddr) {
++		dma_free_coherent(vin->dev, buf->size, buf->vaddr, buf->paddr);
++		buf->vaddr = NULL;
++		buf->size = 0;
++	}
++}
++
++static void vin_intr_clear(void __iomem * sysctrl_base)
++{
++	reg_write(sysctrl_base, SYSCTRL_REG21, 0x1);
++	reg_write(sysctrl_base, SYSCTRL_REG21, 0x0);
++}
++
++static irqreturn_t vin_wr_irq_handler(int irq, void *priv)
++{
++	static struct vin_params params;
++	static int wtimes = 0;
++	struct stf_vin_dev *vin = priv;
++
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++
++	/*clear interrupt */
++	vin_intr_clear(sysctrl_base);
++
++	wtimes = wtimes % 2;
++	if (wtimes == 0)
++		params.paddr = (void *)vin->buf.paddr;
++	else
++		params.paddr = (void *)(vin->buf.paddr + vin->buf.size);
++
++	params.size = vin->buf.size;
++
++	vin_notifier_call(1, &params);
++
++	vin->condition = true;
++	vin->odd = wtimes;
++	wake_up_interruptible(&vin->wq);
++	wtimes++;
++	
++	return IRQ_HANDLED;
++}
++
++void vin_isp0_intr_clear(void)
++{
++	u32 value;
++	value = reg_read(isp0_base, 0xA00);
++	reg_write(isp0_base, 0xA00, value);
++}
++
++static irqreturn_t vin_isp0_irq_handler(int irq, void *priv)
++{
++	static struct vin_params params;
++	static int wtimes = 0;
++	struct stf_vin_dev *vin = priv;
++
++	/*clear interrupt */
++	vin_isp0_intr_clear();
++
++	wtimes = wtimes % 2;
++	if (wtimes == 0) {
++		params.paddr = (void *)FB_FIRST_ADDR;
++		reg_write(isp0_base, ISP_REG_Y_PLANE_START_ADDR,  FB_FIRST_ADDR);	// Unscaled Output Image Y Plane Start Address Register
++		reg_write(isp0_base, ISP_REG_UV_PLANE_START_ADDR, FB_FIRST_ADDR+(vin->frame.width*vin->frame.height));	// Unscaled Output Image UV Plane Start Address Register
++		reg_write(isp0_base, ISP_REG_STRIDE, vin->frame.width);	// Unscaled Output Image Stride Register
++	} else {
++		params.paddr = (void *)FB_SECOND_ADDR;
++		reg_write(isp0_base, ISP_REG_Y_PLANE_START_ADDR,  FB_SECOND_ADDR);	// Unscaled Output Image Y Plane Start Address Register
++		reg_write(isp0_base, ISP_REG_UV_PLANE_START_ADDR, FB_SECOND_ADDR+(vin->frame.width*vin->frame.height));	// Unscaled Output Image UV Plane Start Address Register
++		reg_write(isp0_base, ISP_REG_STRIDE, vin->frame.width);	// Unscaled Output Image Stride Register
++	}
++
++	params.size = vin->buf.size;
++
++	vin->condition = true;
++	vin->odd = wtimes;
++	wake_up_interruptible(&vin->wq);
++
++	vin_notifier_call(1, &params);
++
++	wtimes++;
++	return IRQ_HANDLED;
++}
++
++static void vin_irq_disable(struct stf_vin_dev *vin)
++{
++	unsigned int mask_value = 0, value = 0;
++
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++
++	/* mask and clear vin interrupt */
++	mask_value = (0x1 << 4) | (0x1 << 20);
++
++	value = 0x1 | (0x1 << 0x16) | mask_value;
++	reg_write(sysctrl_base, SYSCTRL_REG21, value);
++
++	value = mask_value;
++	reg_write(sysctrl_base, SYSCTRL_REG21, value);
++}
++
++static void vin_irq_enable(struct stf_vin_dev *vin)
++{
++	unsigned int value = 0;
++
++	void __iomem *sysctrl_base = vin->base + VIN_SYSCONTROLLER_OFFSET;
++
++	value = ~((0x1 << 4) | (0x1 << 20));
++
++	reg_write(sysctrl_base, SYSCTRL_REG21, value);
++}
++
++static int stf_vin_probe(struct platform_device *pdev)
++{
++	struct stf_vin_dev *vin;
++	struct resource *mem;
++	int irq;
++	dev_t devid;
++	struct class *vin_cls;
++	int major = 0;
++	int ret = 0;
++	dev_info(&pdev->dev, "vin probe enter!\n");
++
++	vin = devm_kzalloc(&pdev->dev, sizeof(struct stf_vin_dev), GFP_KERNEL);
++	if (!vin)
++		return -ENOMEM;
++
++	irq = platform_get_irq(pdev, 0);
++	if (irq <= 0) {
++		dev_err(&pdev->dev, "Could not get irq\n");
++		return -ENODEV;
++	}
++
++	vin->isp0_irq = platform_get_irq(pdev, 1);
++	if (vin->isp0_irq <= 0) {
++		dev_err(&pdev->dev, "Could not get irq\n");
++		return -ENODEV;
++	}
++
++	isp0_base = ioremap(VIN_ISP0_BASE_ADDR, 0x30000);
++	if (IS_ERR(isp0_base)) {
++		dev_err(&pdev->dev, "Could not map registers\n");
++		return PTR_ERR(isp0_base);
++	}
++
++	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!mem) {
++		dev_err(&pdev->dev, "Could not get resource\n");
++		return -ENODEV;
++	}
++
++	vin->base = devm_ioremap(&pdev->dev, mem->start,
++					 resource_size(mem));
++	if (IS_ERR(vin->base)) {
++		dev_err(&pdev->dev, "Could not map registers\n");
++		return PTR_ERR(vin->base);
++	}
++
++	spin_lock_init(&vin->irqlock);
++
++	vin->dev = &pdev->dev;
++	vin->irq = irq;
++
++	vin_irq_disable(vin);
++
++	ret = devm_request_irq(&pdev->dev, vin->irq, vin_wr_irq_handler, 0,
++			       "vin_axiwr_irq", vin);
++	if (ret) {
++		dev_err(&pdev->dev, "failed to request irq\n");
++		goto out;
++	}
++
++	ret = devm_request_irq(&pdev->dev, vin->isp0_irq, vin_isp0_irq_handler, 0,
++			       "vin_isp0_irq", vin);
++	if (ret) {
++		dev_err(&pdev->dev, "failed to request irq\n");
++		goto out;
++	}
++
++	ret = of_reserved_mem_device_init(&pdev->dev);
++	if (ret) {
++		dev_err(&pdev->dev, "Could not get reserved memory\n");
++		goto out;
++	}
++
++	/* default config */
++	vin->format.format = SRC_DVP_SENSOR_VIN_OV5640;
++	vin->frame.height = VD_HEIGHT_1080P;
++	vin->frame.width = VD_WIDTH_1080P;
++	vin->isp0 = false;
++	vin->isp1 = false;
++
++	vin->condition = false;
++	init_waitqueue_head(&vin->wq);
++
++	spin_lock_init(&vin->irqlock);
++	platform_set_drvdata(pdev, vin);
++
++	/* Reset device */
++	ret = stf_vin_clk_init(vin);
++	if (ret) {
++		dev_err(&pdev->dev, "Failed to reset device \n");
++		goto out;
++	}
++
++	/* set the sysctl config */
++	ret = stf_vin_config_set(vin);
++	if (ret) {
++		dev_err(&pdev->dev, "Failed to config device\n");
++		goto out;
++	}
++
++	ret = vin_alloc_buf(vin);
++	if (ret)
++		goto out;
++
++	vin_irq_enable(vin);
++	if (vin->format.format == SRC_DVP_SENSOR_VIN)
++		dvp_vin_ddr_addr_config(vin);
++
++	usleep_range(3000, 5000);
++
++	ret = alloc_chrdev_region(&devid, 0, 1, "vin");
++
++	major = MAJOR(devid);
++	if (major < 0) {
++		dev_err(&pdev->dev, "Failed register chrdev\n");
++		ret = major;
++	}
++	vin->major = major;
++
++	cdev_init(&vin->vin_cdev, &vin_fops);
++	cdev_add(&vin->vin_cdev, devid, 1);
++
++	vin_cls = class_create(THIS_MODULE, "vin");
++	device_create(vin_cls, NULL, MKDEV(major, 0), NULL, "vin");
++
++	return 0;
++out:
++	return ret;
++}
++
++static int stf_vin_remove(struct platform_device *pdev)
++{
++	struct stf_vin_dev *vin = platform_get_drvdata(pdev);
++	vin_free_buf(vin);
++
++	cdev_del(&vin->vin_cdev);
++	unregister_chrdev_region(MKDEV(vin->major, 0), 1);
++	dev_info(&pdev->dev, "remove done\n");
++
++	return 0;
++}
++
++static const struct of_device_id stf_vin_of_match[] = {
++	{.compatible = "starfive,stf-vin"},
++	{ /* end node */ },
++};
++
++MODULE_DEVICE_TABLE(of, stf_vin_of_match);
++
++static struct platform_driver stf_vin_driver = {
++	.probe = stf_vin_probe,
++	.remove = stf_vin_remove,
++	.driver = {
++		   .name = DRV_NAME,
++		   .of_match_table = of_match_ptr(stf_vin_of_match),
++		   },
++};
++
++static int __init stf_vin_init(void)
++{
++	return platform_driver_register(&stf_vin_driver);
++}
++
++static void __exit stf_vin_cleanup(void)
++{	
++	platform_driver_unregister(&stf_vin_driver);
++}
++
++fs_initcall(stf_vin_init);
++module_exit(stf_vin_cleanup);
++
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("Starfive VIC video in driver");
++MODULE_LICENSE("GPL");
++MODULE_SUPPORTED_DEVICE("video");
+diff --git a/drivers/video/fbdev/Kconfig b/drivers/video/fbdev/Kconfig
+old mode 100644
+new mode 100755
+index cfb7f5612ef0..e8700a23dd5f
+--- a/drivers/video/fbdev/Kconfig
++++ b/drivers/video/fbdev/Kconfig
+@@ -1795,6 +1795,15 @@ config PXA3XX_GCU
+ 
+ 	  If you compile this as a module, it will be called pxa3xx_gcu.
+ 
++config FB_STARFIVE
++	tristate "Starfive framebuffer support"
++	depends on FB
++	select FB_CFB_FILLRECT
++	select FB_CFB_COPYAREA
++	select FB_CFB_IMAGEBLIT
++	help
++	  Framebuffer driver for the Starfive SOC
++
+ config FB_FSL_DIU
+ 	tristate "Freescale DIU framebuffer support"
+ 	depends on FB && FSL_SOC
+@@ -2239,3 +2248,4 @@ config FB_SM712
+ source "drivers/video/fbdev/omap/Kconfig"
+ source "drivers/video/fbdev/omap2/Kconfig"
+ source "drivers/video/fbdev/mmp/Kconfig"
++source "drivers/video/fbdev/starfive/Kconfig"
+diff --git a/drivers/video/fbdev/Makefile b/drivers/video/fbdev/Makefile
+old mode 100644
+new mode 100755
+index 477b9624b703..bb7b6d0455d8
+--- a/drivers/video/fbdev/Makefile
++++ b/drivers/video/fbdev/Makefile
+@@ -31,6 +31,7 @@ obj-$(CONFIG_FB_VIA)		  += via/
+ obj-$(CONFIG_FB_KYRO)             += kyro/
+ obj-$(CONFIG_FB_SAVAGE)		  += savage/
+ obj-$(CONFIG_FB_GEODE)		  += geode/
++obj-$(CONFIG_FB_STARFIVE)		  += starfive/
+ obj-$(CONFIG_FB_NEOMAGIC)         += neofb.o
+ obj-$(CONFIG_FB_3DFX)             += tdfxfb.o
+ obj-$(CONFIG_FB_CONTROL)          += controlfb.o
+diff --git a/drivers/video/fbdev/starfive/Kconfig b/drivers/video/fbdev/starfive/Kconfig
+new file mode 100644
+index 000000000000..cb617708752a
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/Kconfig
+@@ -0,0 +1,12 @@
++#
++# Video TX driver configuration
++#
++menu "Video TX Configuration"
++
++config FB_STARFIVE_HDMI_ADV7513
++	bool "HDMI ADV7513 displayer support"
++	depends on FB_STARFIVE
++	help
++	  Say Y here if you want to have support for ADV7513 displayer
++
++endmenu
+diff --git a/drivers/video/fbdev/starfive/Makefile b/drivers/video/fbdev/starfive/Makefile
+new file mode 100644
+index 000000000000..80daf1a41b4e
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/Makefile
+@@ -0,0 +1,9 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# Makefile for RTC class/drivers.
++#
++
++obj-$(CONFIG_FB_STARFIVE)		+= starfive_fb.o starfive_lcdc.o starfive_vpp.o \
++					starfive_display_dev.o starfive_displayer.o
++
++obj-$(CONFIG_FB_STARFIVE_HDMI_ADV7513)		+= adv7513.o
+diff --git a/drivers/video/fbdev/starfive/adv7513.c b/drivers/video/fbdev/starfive/adv7513.c
+new file mode 100644
+index 000000000000..bb4dd0c375fa
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/adv7513.c
+@@ -0,0 +1,265 @@
++/*
++ ******************************************************************************
++ * @file  adv7513.c
++ * @author  StarFive Technology
++ * @version  V1.0
++ * @date  09/21/2020
++ * @brief
++ ******************************************************************************
++ * @copy
++ *
++ * THE PRESENT SOFTWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
++ * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE
++ * TIME. AS A RESULT, STARFIVE SHALL NOT BE HELD LIABLE FOR ANY
++ * DIRECT, INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING
++ * FROM THE CONTENT OF SUCH SOFTWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
++ * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
++ *
++ * <h2><center>&copy; COPYRIGHT 2020 Shanghai StarFive Technology Co., Ltd. </center></h2>
++ */
++
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/gpio.h>
++#include <linux/gpio-starfive-vic.h>
++#include <linux/gpio/consumer.h>
++#include <linux/device.h>
++#include <linux/delay.h>
++#include <linux/i2c.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/media.h>
++#include <linux/module.h>
++#include <linux/ratelimit.h>
++#include <linux/slab.h>
++#include <linux/string.h>
++
++#include "adv7513.h"
++
++static int adv7513_write(struct i2c_client *client, u16 reg, u8 val)
++{
++	struct i2c_msg msg;
++	u8 buf[2];
++	int ret;
++
++	buf[0] = reg;
++	buf[1] = val;
++
++	msg.addr = client->addr;
++	msg.flags = 0;
++	msg.buf = buf;
++	msg.len = 2;
++
++	ret = i2c_transfer(client->adapter, &msg, 1);
++	if (ret >= 0)
++		return 0;
++
++	dev_err(&client->dev,
++		"adv7513 write reg(0x%x val:0x%x) failed !\n", reg, val);
++
++	return ret;
++}
++
++static int adv7513_read(struct i2c_client *client, u8 reg, u8 *val)
++{
++	struct i2c_msg msg[2];
++	u8 buf[2];
++	int ret;
++
++	buf[0] = reg;
++
++	msg[0].addr = client->addr;
++	msg[0].flags = 0;
++	msg[0].buf = buf;
++	msg[0].len = 1;
++
++	msg[1].addr = client->addr;
++	msg[1].flags = I2C_M_RD;
++	msg[1].buf = val;
++	msg[1].len = 1;
++
++	ret = i2c_transfer(client->adapter, msg, 2);
++	if (ret >= 0) {
++		return 0;
++	}
++
++	dev_err(&client->dev,
++		"adv7513 read reg(0x%x val:0x%x) failed,ret = %d !\n", reg, *val, ret);
++
++	return ret;
++}
++
++/*============================================================================
++ * Read up to 8-bit field from a single 8-bit register
++ *              ________
++ * Example     |___***__|  Mask = 0x1C     BitPos = 2
++ *
++ *
++ * Entry:   DevAddr = Device Address
++ *          RegAddr = 8-bit register address
++ *          Mask    = Field mask
++ *          BitPos  = Field LSBit position in the register (0-7)
++ *
++ * Return:  Field value in the LSBits of the return value
++ *
++ *===========================================================================*/
++static u8 adv7513_I2CReadField8 (struct i2c_client *client, u8 RegAddr, u8 Mask,
++                         u8 BitPos)
++{
++    u8 data;
++
++	adv7513_read(client, RegAddr, &data);
++	return (data&Mask)>>BitPos;
++}
++
++/*============================================================================
++ * Write up to 8-bit field to a single 8-bit register
++ *              ________
++ * Example     |___****_|  Mask = 0x1E     BitPos = 1
++ *
++ * Entry:   DevAddr = Device Address
++ *          RegAddr = 8-bit register address
++ *          Mask    = Field mask
++ *          BitPos  = Field LSBit position in the register (0-7)
++ *                    Set to 0 if FieldVal is in correct position of the reg
++ *          FieldVal= Value (in the LSBits) of the field to be written
++ *                    If FieldVal is already in the correct position (i.e.,
++ *                    does not need to be shifted,) set BitPos to 0
++ *
++ * Return:  None
++ *
++ *===========================================================================*/
++static void adv7513_I2CWriteField8 (struct i2c_client *client,u8 RegAddr, u8 Mask,
++                         u8 BitPos, u8 FieldVal)
++{
++    u8 rdata, wdata;
++
++    adv7513_read(client, RegAddr, &rdata);
++    rdata &= (~Mask);
++    wdata = rdata | ((FieldVal<<BitPos)&Mask);
++    adv7513_write(client, RegAddr, wdata);
++}
++
++static int adv7513_probe(struct i2c_client *client, const struct i2c_device_id *id)
++{
++	struct adv7513_data *adv7513;
++	struct device *dev = &client->dev;
++    u8 value;
++	int ret = 0;
++
++	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
++		dev_warn(&client->dev,
++			 "I2C adapter doesn't support I2C_FUNC_SMBUS_BYTE\n");
++		return -EIO;
++	}
++
++	adv7513 = devm_kzalloc(&client->dev, sizeof(*adv7513), GFP_KERNEL);
++	if (!adv7513)
++		return -ENOMEM;
++
++	if (of_property_read_u32(dev->of_node, "def-width", &adv7513->def_width)) {
++		dev_err(dev,"Missing def_width property in the DT \n");
++		ret = -EINVAL;
++	}
++
++	adv7513->client = client;
++	i2c_set_clientdata(client, adv7513);
++
++	adv7513_read(client, 0x00, &value);
++	dev_info(&client->dev, "%s[%d],version = 0x%x\n",__func__,__LINE__,value);
++
++	adv7513_I2CWriteField8(client, 0x41, 0x40, 0x6, 0x00);
++	adv7513_I2CWriteField8(client, 0x98, 0xFF, 0x0, 0x03);
++	adv7513_I2CWriteField8(client, 0x9A, 0xE0, 0x5, 0x07);
++	adv7513_I2CWriteField8(client, 0x9C, 0xFF, 0x0, 0x30);
++	adv7513_I2CWriteField8(client, 0x9D, 0x03, 0x0, 0x01);
++	adv7513_I2CWriteField8(client, 0xA2, 0xFF, 0x0, 0xA4);
++	adv7513_I2CWriteField8(client, 0xA3, 0xFF, 0x0, 0xA4);
++	adv7513_I2CWriteField8(client, 0xE0, 0xFF, 0x0, 0xD0);
++	adv7513_I2CWriteField8(client, 0xF9, 0xFF, 0x0, 0x00);
++
++	adv7513_I2CWriteField8(client, 0x15, 0x0F, 0x0, 0x00);
++	adv7513_I2CWriteField8(client, 0x16, 0x30, 0x4, 0x03);
++	adv7513_I2CWriteField8(client, 0x16, 0x0C, 0x2, 0x00);
++	adv7513_I2CWriteField8(client, 0x17, 0x02, 0x1, 0x00);
++
++	adv7513_I2CWriteField8(client, 0x16, 0xC0, 0x6, 0x00);
++	adv7513_I2CWriteField8(client, 0x18, 0x80, 0x7, 0x00);
++	adv7513_I2CWriteField8(client, 0x18, 0x60, 0x5, 0x00);
++	adv7513_I2CWriteField8(client, 0xAF, 0x02, 0x1, 0x01);
++	adv7513_I2CWriteField8(client, 0x3C, 0x3F, 0x0, 0x01);
++
++	switch(adv7513->def_width) {
++		case 288:
++			adv7513_I2CWriteField8(client, 0x3C, 0x3F, 0x0, 0x18);//288P
++			adv7513_I2CWriteField8(client, 0x3B, 0xFF, 0x0, 0x00);
++			break;
++		case 640:
++			adv7513_I2CWriteField8(client, 0x3C, 0x3F, 0x0, 0x01);
++			adv7513_I2CWriteField8(client, 0x3B, 0xFF, 0x0, 0x4A); //b01001010
++			break;
++		case 1280:
++			adv7513_I2CWriteField8(client, 0x3C, 0x3F, 0x0, 0x04);//720P
++			adv7513_I2CWriteField8(client, 0x3B, 0xFF, 0x0, 0x00);//b01011000
++			break;
++		case 1920:
++			adv7513_I2CWriteField8(client, 0x3C, 0x3F, 0x0, 0x10);//1080P
++			adv7513_I2CWriteField8(client, 0x3B, 0xFF, 0x0, 0x00);//b01011000
++			break;
++		default:
++			dev_err(dev,"not support width %d \n",adv7513->def_width);
++	}
++
++	return ret;
++}
++
++static int adv7513_remove(struct i2c_client *client)
++{
++	struct adv7513 *adv7513 = i2c_get_clientdata(client);
++
++	return 0;
++}
++
++static const struct i2c_device_id adv7513_id[] = {
++	{ "adv7513", 0 },
++	{ }
++};
++
++static const struct of_device_id dvp_adv7513_dt_ids[] = {
++	{ .compatible = "adv7513", },
++	{ /* sentinel */ }
++};
++
++static struct i2c_driver adv7513_driver = {
++	.driver = {
++		.owner	= THIS_MODULE,
++		.name	= "adv7513",
++        .of_match_table = dvp_adv7513_dt_ids,
++	},
++	.probe		= adv7513_probe,
++	.remove		= adv7513_remove,
++	.id_table	= adv7513_id,
++};
++
++static __init int init_adv7513(void)
++{
++    int err;
++
++	err = i2c_add_driver(&adv7513_driver);
++    if (err != 0)
++		printk("i2c driver registration failed, error=%d\n", err);
++
++	return err;
++}
++
++static __exit void exit_adv7513(void)
++{
++	i2c_del_driver(&adv7513_driver);
++}
++
++//late_initcall(init_adv7513);
++fs_initcall(init_adv7513);
++module_exit(exit_adv7513);
++
++MODULE_DESCRIPTION("A driver for adv7513");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/video/fbdev/starfive/adv7513.h b/drivers/video/fbdev/starfive/adv7513.h
+new file mode 100644
+index 000000000000..fe98b00ff2b9
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/adv7513.h
+@@ -0,0 +1,22 @@
++/*
++ * Analog Devices ADV7513 HDMI transmitter driver
++ *
++ * Copyright 2020 StarFive Inc.
++ *
++ * Licensed under the GPL-2.
++ */
++
++#ifndef __AD_I2C_ADV7513_H__
++#define __AD_I2C_ADV7513_H__
++
++#define  H_SIZE   1920//352//1920//1280
++#define  V_SIZE   1080//288//1080//720
++
++struct adv7513_data {
++	struct i2c_client *client;
++	struct device   *dev;
++	int 			irq;
++	int		def_width;
++};
++
++#endif
+diff --git a/drivers/video/fbdev/starfive/starfive_display_dev.c b/drivers/video/fbdev/starfive/starfive_display_dev.c
+new file mode 100644
+index 000000000000..2997a0721621
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_display_dev.c
+@@ -0,0 +1,106 @@
++/* driver/video/starfive/starfive_display_dev.c
++**
++** This program is free software; you can redistribute it and/or modify
++** it under the terms of the GNU General Public License version 2 as
++** published by the Free Software Foundation.
++**
++** Copyright (C) 2020 StarFive, Inc.
++**
++** PURPOSE:	This files contains the driver of LCD controller and VPP.
++**
++** CHANGE HISTORY:
++**	Version		Date		Author		Description
++**	0.1.0		2020-11-10	starfive		created
++**
++*/
++#include <linux/of_device.h>
++#include <linux/of.h>
++#include <linux/mutex.h>
++#include "starfive_display_dev.h"
++
++struct sf_fb_display_dev_data {
++	struct sf_fb_display_dev* dev;
++	struct list_head list;
++};
++
++static DEFINE_MUTEX(sf_fb_display_dev_lock);
++static LIST_HEAD(sf_fb_display_dev_list);
++
++int sf_fb_display_dev_register(struct sf_fb_display_dev* dev)
++{
++	struct sf_fb_display_dev_data *display_dev;
++
++	display_dev = kzalloc(sizeof(struct sf_fb_display_dev_data), GFP_KERNEL);
++	if (!display_dev)
++		return -ENOMEM;
++
++	INIT_LIST_HEAD(&display_dev->list);
++	display_dev->dev = dev;
++
++	mutex_lock(&sf_fb_display_dev_lock);
++	list_add_tail(&display_dev->list, &sf_fb_display_dev_list);
++	mutex_unlock(&sf_fb_display_dev_lock);
++
++	return 0;
++}
++EXPORT_SYMBOL(sf_fb_display_dev_register);
++
++int sf_fb_display_dev_unregister(struct sf_fb_display_dev* dev)
++{
++	struct sf_fb_display_dev_data *display_dev;
++
++	mutex_lock(&sf_fb_display_dev_lock);
++	list_for_each_entry(display_dev, &sf_fb_display_dev_list, list) {
++		if (display_dev->dev == dev) {
++			list_del_init(&display_dev->list);
++			kfree(display_dev);
++		}
++	}
++	mutex_unlock(&sf_fb_display_dev_lock);
++
++	return 0;
++}
++EXPORT_SYMBOL(sf_fb_display_dev_unregister);
++
++static int build_dev_list(struct sf_fb_data *fb_data)
++{
++	int rc = 0;
++
++	rc = of_platform_populate(fb_data->dev->of_node,
++				  NULL, NULL, fb_data->dev);
++	if (rc) {
++		dev_err(fb_data->dev,
++			"%s: failed to add child nodes, rc=%d\n",
++			__func__, rc);
++	}
++
++	return rc;
++}
++
++struct sf_fb_display_dev* sf_fb_display_dev_get(struct sf_fb_data *fb_data)
++{
++	struct sf_fb_display_dev_data *display_dev;
++	struct sf_fb_display_dev *dev = NULL;
++	char *connect_panel_name;
++
++	build_dev_list(fb_data);
++
++	connect_panel_name = fb_data->dis_dev_name;
++	mutex_lock(&sf_fb_display_dev_lock);
++	list_for_each_entry(display_dev, &sf_fb_display_dev_list, list) {
++		if(!strcmp(connect_panel_name, display_dev->dev->name)) {
++			dev = display_dev->dev;
++			dev_info(fb_data->dev, "select displayer: %s\n", dev->name);
++			break;
++		}
++	}
++
++	if (!dev) {
++			display_dev = list_first_entry(&sf_fb_display_dev_list, typeof(*display_dev), list);
++			dev = display_dev->dev;
++			dev_info(fb_data->dev,"default get first displayer(%s)! \n", display_dev->dev->name);
++	}
++
++	return dev;
++}
++EXPORT_SYMBOL(sf_fb_display_dev_get);
+diff --git a/drivers/video/fbdev/starfive/starfive_display_dev.h b/drivers/video/fbdev/starfive/starfive_display_dev.h
+new file mode 100644
+index 000000000000..13348226e421
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_display_dev.h
+@@ -0,0 +1,257 @@
++/*
++ * StarFive Vout driver
++ *
++ * Copyright 2020 StarFive Inc.
++ *
++ * Licensed under the GPL-2.
++ */
++
++#ifndef __SF_FB_DISPLAY_DEV_H_
++#define __SF_FB_DISPLAY_DEV_H_
++
++#include <linux/fb.h>
++#include <linux/delay.h>
++#include <linux/gpio.h>
++
++#include "starfive_fb.h"
++
++#define RST_SEQ_LEN		16
++
++#define COMIPFB_HSYNC_HIGH_ACT		(0x03)
++#define COMIPFB_VSYNC_HIGH_ACT		(0x04)
++
++#define MIPI_VIDEO_MODE 		(0x05)
++#define MIPI_COMMAND_MODE 		(0x06)
++
++#define ARRAY_AND_SIZE(x)		(u8 *)(x), ARRAY_SIZE(x)
++
++/*display prefer and ce*/
++#define COLOR_TYPE_MAX			(3)
++#define PREFER_WARM			(1)
++#define PREFER_NATURE			(2)
++#define PREFER_COOL			(3)
++
++#define CE_BRIGHT 			(12)
++#define CE_VELVIA			(11)
++#define CE_STANDARD			(10)
++
++
++enum {
++	DCS_CMD = 2,
++	GEN_CMD,
++	SW_PACK0,
++	SW_PACK1,
++	SW_PACK2,
++	LW_PACK,
++	SHUTDOWN_SW_PACK,
++};
++
++/*Device flags*/
++#define	PREFER_CMD_SEND_MONOLITHIC	(0x00000001)
++#define	CE_CMD_SEND_MONOLITHIC		(0x00000002)
++
++#define RESUME_WITH_PREFER		(0x00000010)
++#define RESUME_WITH_CE			(0x00000020)
++
++
++/**
++ * Video stream type
++ */
++typedef enum {
++	VIDEO_NON_BURST_WITH_SYNC_PULSES = 0,
++	VIDEO_NON_BURST_WITH_SYNC_EVENTS,	// hs_freq and pck should be multipe
++	VIDEO_BURST_WITH_SYNC_PULSES,
++}dsih_video_mode_t;
++
++#ifdef CONFIG_FBCON_DRAW_PANIC_TEXT
++extern int kpanic_in_progress;
++#endif
++
++/*struct sf_fb_dev_cmds.cmds must follow this format*/
++struct wr_cmd_hdr {
++	u8 wait;
++	u8 cmd_type0;
++	u8 cmd_type1;
++	u8 dlen;
++} __packed;
++
++struct sf_fb_dev_cmds {
++	unsigned char *cmds;
++	unsigned short n_pack;
++	unsigned short n_cmds;
++};
++
++struct bl_cmds {
++	struct sf_fb_dev_cmds bl_cmd;
++	unsigned int brightness_bit;
++};
++
++struct mipi_color_bits {
++	unsigned int color_bits; // must be set !!
++	unsigned int is_18bit_loosely; // optional
++};
++
++struct rw_timeout {
++	unsigned int hs_rd_to_cnt;
++	unsigned int lp_rd_to_cnt;
++	unsigned int hs_wr_to_cnt;
++	unsigned int lp_wr_to_cnt;
++	unsigned int bta_to_cnt;
++};
++
++struct video_mode_info {
++	unsigned int hsync;	/* Horizontal Synchronization, unit : pclk. */
++	unsigned int hbp;	/* Horizontal Back Porch, unit : pclk. */
++	unsigned int hfp;	/* Horizontal Front Porch, unit : pclk. */
++	unsigned int vsync;	/* Vertical Synchronization, unit : line. */
++	unsigned int vbp;	/* Vertical Back Porch, unit : line. */
++	unsigned int vfp;	/* Vertical Front Porch, unit : line. */
++	unsigned int sync_pol;
++	unsigned int lp_cmd_en:1;
++	unsigned int frame_bta_ack:1;
++	unsigned int lp_hfp_en:1; // default should be 1
++	unsigned int lp_hbp_en:1;
++	unsigned int lp_vact_en:1;
++	unsigned int lp_vfp_en:1;
++	unsigned int lp_vbp_en:1;
++	unsigned int lp_vsa_en:1;
++	dsih_video_mode_t mipi_trans_type; /* burst or no burst*/
++};
++
++struct command_mode_info {
++	unsigned int tear_fx_en:1;
++	unsigned int ack_rqst_en:1;
++	unsigned int gen_sw_0p_tx:1;	// default should be 1
++	unsigned int gen_sw_1p_tx:1;	// default should be 1
++	unsigned int gen_sw_2p_tx:1;	// default should be 1
++	unsigned int gen_sr_0p_tx:1;	// default should be 1
++	unsigned int gen_sr_1p_tx:1;	// default should be 1
++	unsigned int gen_sr_2p_tx:1;	// default should be 1
++	unsigned int gen_lw_tx:1;		// default should be 1
++	unsigned int dcs_sw_0p_tx:1;	// default should be 1
++	unsigned int dcs_sw_1p_tx:1;	// default should be 1
++	unsigned int dcs_sr_0p_tx:1;	// default should be 1
++	unsigned int dcs_lw_tx:1;		// default should be 1
++	unsigned int max_rd_pkt_size:1;	// default should be 1
++	struct rw_timeout timeout;
++};
++
++struct external_info {
++	unsigned char crc_rx_en:1;
++	unsigned char ecc_rx_en:1;
++	unsigned char eotp_rx_en:1;
++	unsigned char eotp_tx_en:1;
++	unsigned int dev_read_time;	//HSBYTECLK is danwe
++};
++
++struct phy_time_info {
++	unsigned char lpx;
++	//unsigned char clk_lpx;
++	unsigned char clk_tprepare;
++	unsigned char clk_hs_zero;
++	unsigned char clk_hs_trail;
++	unsigned char clk_hs_exit;
++	unsigned char clk_hs_post;
++
++	//unsigned char data_lpx;
++	unsigned char data_tprepare;
++	unsigned char data_hs_zero;
++	unsigned char data_hs_trail;
++	unsigned char data_hs_exit;
++	unsigned char data_hs_post;
++};
++
++struct te_info {
++	unsigned int te_source;
++	unsigned int te_trigger_mode;
++	unsigned int te_en;
++	unsigned int te_sync_en; // In command mode should set 1,  video should set 0
++	unsigned int te_cps;	// te count per second
++};
++
++struct sf_fb_timing_mipi {
++	unsigned int hs_freq; /*PHY output freq, bytes KHZ*/
++	unsigned int lp_freq; /*default is 10MHZ*/
++	unsigned int no_lanes; /*lane numbers*/
++	unsigned int display_mode; //video mode or command mode.
++	unsigned int auto_stop_clklane_en;
++	unsigned int im_pin_val; /*IM PIN val, if use gpio_im, default config is 1  ?? */
++	struct mipi_color_bits color_mode; /*color bits*/
++	struct video_mode_info videomode_info;
++	struct command_mode_info commandmode_info;
++	struct phy_time_info phytime_info;
++	struct te_info teinfo;
++	struct external_info ext_info;
++};
++
++struct rd_cmd_hdr {
++	unsigned char pack_type;
++	unsigned char cmd;
++	unsigned char id_count;
++} __packed;
++struct common_id_info {
++	struct rd_cmd_hdr hdr;
++	unsigned char id[6];
++} __packed;
++
++struct sf_fb_id_info {
++	unsigned char num_id_info;
++	struct common_id_info *id_info;
++	struct sf_fb_dev_cmds prepare_cmd;
++};
++
++struct prefer_ce_info {
++	int type;
++	struct sf_fb_dev_cmds cmds;
++};
++
++struct sf_fb_prefer_ce {
++	int types;
++	struct prefer_ce_info *info;
++};
++
++struct sf_fb_display_dev {
++	const char* name;	/* Device name. */
++	unsigned int interface_info;//interface infomation  MIPI or RGB
++	unsigned int lcd_id;
++	unsigned int refresh_en;	/* Refresh enable. */
++	unsigned int pclk;		/* Pixel clock in HZ. */
++	unsigned int bpp;		/* Bits per pixel. */
++	unsigned int xres;		/* Device resolution. */
++	unsigned int yres;
++	unsigned int width;		/* Width of device in mm. */
++	unsigned int height;		/* Height of device in mm. */
++	unsigned int flags;		/* Device flags. */
++	unsigned int auto_fps;		/* auto adjust frame rate flag*/
++	unsigned int send_suspend_cmd_in_hs_mode;   /* send suspend cmd is hs mode */
++	union {
++		//struct comipfb_dev_timing_rgb rgb;
++		struct sf_fb_timing_mipi mipi;
++	} timing;
++
++	struct sf_fb_id_info panel_id_info;
++	struct sf_fb_id_info esd_id_info;
++	struct sf_fb_dev_cmds cmds_init;
++	struct sf_fb_dev_cmds cmds_suspend;
++	struct sf_fb_dev_cmds cmds_resume;
++	struct sf_fb_dev_cmds cmds_pre_suspend;
++	struct bl_cmds backlight_info;
++
++	struct sf_fb_prefer_ce resume_prefer_info;
++	struct sf_fb_prefer_ce display_prefer_info;
++	struct sf_fb_prefer_ce display_ce_info;
++	int init_last;		/*when resume, send gamma/ce cmd before init cmd*/
++	u32 rst_seq[RST_SEQ_LEN];
++	u32 rst_seq_len;
++
++	int (*power)(struct sf_fb_data *fb_data, int onoff);
++	int (*reset)(struct sf_fb_data *fb_data);
++	int (*suspend)(struct sf_fb_data *fb_data);
++	int (*resume)(struct sf_fb_data *fb_data);
++};
++
++extern int sf_fb_display_dev_register(struct sf_fb_display_dev* dev);
++extern int sf_fb_display_dev_unregister(struct sf_fb_display_dev* dev);
++extern struct sf_fb_display_dev* sf_fb_display_dev_get(struct sf_fb_data *fb_data);
++
++#endif /*__COMIPFB_DEV_H_*/
+diff --git a/drivers/video/fbdev/starfive/starfive_displayer.c b/drivers/video/fbdev/starfive/starfive_displayer.c
+new file mode 100644
+index 000000000000..e23e1ff6ce9d
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_displayer.c
+@@ -0,0 +1,811 @@
++/* driver/video/starfive/starfive_displayer.c
++**
++** This program is free software; you can redistribute it and/or modify
++** it under the terms of the GNU General Public License version 2 as
++** published by the Free Software Foundation.
++**
++** Copyright (C) 2020 StarFive, Inc.
++**
++** PURPOSE:	This files contains the driver of LCD controller and VPP.
++**
++** CHANGE HISTORY:
++**	Version		Date		Author		Description
++**	0.1.0		2020-11-10	starfive		created
++**
++*/
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/compiler.h>
++#include <linux/init.h>
++#include <linux/of_device.h>
++#include <linux/of.h>
++#include <linux/delay.h>
++#include <linux/errno.h>
++#include <linux/platform_device.h>
++#include <linux/err.h>
++
++#include "starfive_fb.h"
++#include "starfive_display_dev.h"
++
++#define _ALIGN_UP(addr, size) (((addr)+((size)-1))&(~((typeof(addr))(size)-1)))
++#define DSI_CMD_LEN(hdr)	(sizeof(*hdr) + (hdr)->dlen)
++
++static int sf_displayer_reset(struct sf_fb_data *fbi)
++{
++	return 0;
++}
++
++static int sf_displayer_power_on(struct sf_fb_data *fbi, int onoff)
++{
++	return 0;
++}
++
++static int sf_displayer_suspend(struct sf_fb_data *fbi)
++{
++	return 0;
++}
++
++static int sf_displayer_resume(struct sf_fb_data *fbi)
++{
++	return 0;
++}
++
++static void __maybe_unused dump_panel_info(struct device *dev,
++                           struct sf_fb_display_dev *dev_data)
++{
++
++	dev_dbg(dev, "id info: pack_type = 0x%x, cmd = 0x%x, id_count = %d, id = 0x%x, 0x%x\n",
++			dev_data->panel_id_info.id_info->hdr.pack_type,
++			dev_data->panel_id_info.id_info->hdr.cmd,
++			dev_data->panel_id_info.id_info->hdr.id_count,
++			dev_data->panel_id_info.id_info->id[0],
++			dev_data->panel_id_info.id_info->id[1]);
++
++}
++
++static int of_parse_video_mode(struct device_node *np,
++                           struct video_mode_info *videomode_info)
++{
++	int rc;
++	u32 temp_val;
++	const char *data;
++
++	rc = of_property_read_u32(np, "h-pulse-width", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, h-pulse-width not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	videomode_info->hsync= temp_val;
++	rc = of_property_read_u32(np, "h-back-porch", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, h-back-porch not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	videomode_info->hbp = temp_val;
++	rc = of_property_read_u32(np, "h-front-porch", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, h-front-porch not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	videomode_info->hfp = temp_val;
++
++	rc = of_property_read_u32(np, "v-pulse-width", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, v-pulse-width not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	videomode_info->vsync = temp_val;
++	rc = of_property_read_u32(np, "v-back-porch", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, v-back-porch not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	videomode_info->vbp = temp_val;
++	rc = of_property_read_u32(np, "v-front-porch", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, v-front-porch not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	videomode_info->vfp = temp_val;
++
++	videomode_info->sync_pol = COMIPFB_VSYNC_HIGH_ACT;
++	data = of_get_property(np, "sync_pol", NULL);
++	if (data) {
++		if (!strcmp(data, "vsync_high_act"))
++			videomode_info->sync_pol = COMIPFB_VSYNC_HIGH_ACT;
++		else if (!strcmp(data, "hsync_high_act"))
++			videomode_info->sync_pol = COMIPFB_HSYNC_HIGH_ACT;
++	}
++
++	videomode_info->lp_cmd_en = of_property_read_bool(np,
++					"lp_cmd_en");
++	videomode_info->lp_hfp_en = of_property_read_bool(np,
++					"lp_hfp_en");
++	videomode_info->lp_hbp_en = of_property_read_bool(np,
++					"lp_hbp_en");
++	videomode_info->lp_vact_en = of_property_read_bool(np,
++					"lp_vact_en");
++	videomode_info->lp_vfp_en = of_property_read_bool(np,
++					"lp_vfp_en");
++	videomode_info->lp_vbp_en = of_property_read_bool(np,
++					"lp_vbp_en");
++	videomode_info->lp_vsa_en = of_property_read_bool(np,
++					"lp_vsa_en");
++
++	videomode_info->mipi_trans_type = VIDEO_BURST_WITH_SYNC_PULSES;
++	data = of_get_property(np, "traffic-mode", NULL);
++	if (data) {
++		if (!strcmp(data, "burst_with_sync_pulses"))
++			videomode_info->sync_pol = VIDEO_BURST_WITH_SYNC_PULSES;
++		else if (!strcmp(data, "non_burst_with_sync_pulses"))
++			videomode_info->sync_pol = VIDEO_NON_BURST_WITH_SYNC_PULSES;
++		else if (!strcmp(data, "non_burst_with_sync_events"))
++			videomode_info->sync_pol = VIDEO_NON_BURST_WITH_SYNC_EVENTS;
++	}
++
++	return 0;
++}
++
++static int of_parse_command_mode(struct device_node *np,
++                           struct command_mode_info *cmdmode_info)
++{
++	int rc;
++	u32 temp_val;
++
++	cmdmode_info->tear_fx_en = of_property_read_bool(np,
++					"tear_fx_en");
++	cmdmode_info->ack_rqst_en = of_property_read_bool(np,
++					"ack_rqst_en");
++	cmdmode_info->gen_sw_0p_tx = of_property_read_bool(np,
++					"gen_sw_0p_tx");
++	cmdmode_info->gen_sw_1p_tx = of_property_read_bool(np,
++					"gen_sw_1p_tx");
++	cmdmode_info->gen_sw_2p_tx = of_property_read_bool(np,
++					"gen_sw_2p_tx");
++	cmdmode_info->gen_sr_0p_tx = of_property_read_bool(np,
++					"gen_sr_0p_tx");
++	cmdmode_info->gen_sr_1p_tx = of_property_read_bool(np,
++					"gen_sr_1p_tx");
++	cmdmode_info->gen_sr_2p_tx = of_property_read_bool(np,
++					"gen_sr_2p_tx");
++	cmdmode_info->gen_lw_tx = of_property_read_bool(np,
++					"gen_lw_tx");
++	cmdmode_info->dcs_sw_0p_tx = of_property_read_bool(np,
++					"dcs_sw_0p_tx");
++	cmdmode_info->dcs_sw_1p_tx = of_property_read_bool(np,
++					"dcs_sw_1p_tx");
++	cmdmode_info->dcs_sr_0p_tx = of_property_read_bool(np,
++					"dcs_sr_0p_tx");
++	cmdmode_info->dcs_lw_tx = of_property_read_bool(np,
++					"dcs_lw_tx");
++	cmdmode_info->max_rd_pkt_size = of_property_read_bool(np,
++					"max_rd_pkt_size");
++
++
++	rc = of_property_read_u32(np, "hs_rd_to_cnt", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, hs_rd_to_cnt not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	cmdmode_info->timeout.hs_rd_to_cnt = temp_val;
++
++	rc = of_property_read_u32(np, "lp_rd_to_cnt", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, lp_rd_to_cnt not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	cmdmode_info->timeout.lp_rd_to_cnt = temp_val;
++
++	rc = of_property_read_u32(np, "hs_wr_to_cnt", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, hs_wr_to_cnt not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	cmdmode_info->timeout.hs_wr_to_cnt = temp_val;
++
++	rc = of_property_read_u32(np, "lp_wr_to_cnt", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, lp_wr_to_cnt not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	cmdmode_info->timeout.lp_wr_to_cnt = temp_val;
++
++	rc = of_property_read_u32(np, "bta_to_cnt", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, bta_to_cnt not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	cmdmode_info->timeout.bta_to_cnt = temp_val;
++
++	return 0;
++
++}
++
++static int of_parse_phy_timing(struct device_node *np,
++                           struct phy_time_info *phy_timing)
++{
++	int rc;
++	u8 temp_val;
++
++	rc = of_property_read_u8(np, "data_tprepare", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, data_tprepare not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	phy_timing->data_tprepare = (!rc ? temp_val : 0);
++
++	rc = of_property_read_u8(np, "data_hs_zero", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, data_hs_zero not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	phy_timing->data_hs_zero = temp_val;
++
++	rc = of_property_read_u8(np, "data_hs_exit", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, data_hs_exit not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	phy_timing->data_hs_exit = temp_val;
++
++	rc = of_property_read_u8(np, "data_hs_trail", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, data_hs_trail not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	phy_timing->data_hs_trail = temp_val;
++
++	return 0;
++}
++
++static int of_parse_te_info(struct device_node *np,
++                           struct te_info *teinfo)
++{
++	int rc;
++	u32 temp_val;
++	const char *data;
++
++	teinfo->te_source = 1;
++	data = of_get_property(np, "te_source", NULL);
++	if (data) {
++		if (!strcmp(data, "external_pin"))
++			teinfo->te_source = 1;
++		else if (!strcmp(data, "dsi_te_trigger"))
++			teinfo->te_source = 0;
++	}
++
++	teinfo->te_trigger_mode = 1;
++	data = of_get_property(np, "te_trigger_mode", NULL);
++	if (data) {
++		if (!strcmp(data, "rising_edge"))
++			teinfo->te_source = 0;
++		else if (!strcmp(data, "high_1000us"))
++			teinfo->te_source = 1;
++	}
++
++	rc = of_property_read_u32(np, "te_enable", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, te_enable not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	teinfo->te_en = temp_val;
++
++	rc = of_property_read_u32(np, "cm_te_effect_sync_enable", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, cm_te_effect_sync_enable not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	teinfo->te_sync_en = temp_val;
++
++	rc = of_property_read_u32(np, "te_count_per_sec", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, te_count_per_sec not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	teinfo->te_cps = temp_val;
++
++	return 0;
++}
++
++static int of_parse_ext_info(struct device_node *np,
++                           struct external_info *ext_info)
++{
++	int rc;
++	u32 temp_val;
++
++	ext_info->crc_rx_en = of_property_read_bool(np, "crc_rx_en");
++	ext_info->ecc_rx_en = of_property_read_bool(np, "ecc_rx_en");
++	ext_info->eotp_rx_en = of_property_read_bool(np, "eotp_rx_en");
++	ext_info->eotp_tx_en = of_property_read_bool(np, "eotp_tx_en");
++
++	rc = of_property_read_u32(np, "dev_read_time", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, dev_read_time not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	ext_info->dev_read_time = temp_val;
++
++	return 0;
++}
++
++
++static int of_parse_mipi_timing(struct device_node *np,
++                           struct sf_fb_timing_mipi *mipi_timing)
++{
++	int rc;
++	u32 temp_val;
++	const char *data;
++
++	rc = of_property_read_u32(np, "mipi-byte-clock", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, mipi-byte-clock not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	mipi_timing->hs_freq = temp_val;
++
++	rc = of_property_read_u32(np, "mipi-escape-clock", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, mipi-escape-clock not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	mipi_timing->lp_freq= temp_val;
++
++	rc = of_property_read_u32(np, "lane-no", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, lane-no not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	mipi_timing->no_lanes= temp_val;
++
++	/*default use video mode*/
++	mipi_timing->display_mode = MIPI_VIDEO_MODE;
++	data = of_get_property(np, "display_mode", NULL);
++	if (data) {
++		if (!strcmp(data, "video_mode"))
++			mipi_timing->display_mode = MIPI_VIDEO_MODE;
++		else if (!strcmp(data, "command_mode"))
++			mipi_timing->display_mode = MIPI_COMMAND_MODE;
++	}
++
++	mipi_timing->auto_stop_clklane_en = of_property_read_bool(np,
++							"auto_stop_clklane_en");
++	mipi_timing->auto_stop_clklane_en = of_property_read_bool(np,
++							"im_pin_val");
++
++	rc = of_property_read_u32(np, "color_bits", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, color_bits not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	mipi_timing->color_mode.color_bits= temp_val;
++
++	mipi_timing->color_mode.is_18bit_loosely = of_property_read_bool(np,
++						"is_18bit_loosely");
++
++	/*video mode info*/
++	if (mipi_timing->display_mode == MIPI_VIDEO_MODE) {
++		of_parse_video_mode(np, &mipi_timing->videomode_info);
++	} else if (mipi_timing->display_mode == MIPI_COMMAND_MODE) {
++		of_parse_command_mode(np, &mipi_timing->commandmode_info);
++	}
++
++	of_parse_phy_timing(np, &mipi_timing->phytime_info);
++
++	of_parse_te_info(np, &mipi_timing->teinfo);
++
++	of_parse_ext_info(np, &mipi_timing->ext_info);
++
++	return 0;
++}
++
++static int of_parse_rd_cmd_info(struct device_node *np,
++                          struct sf_fb_id_info *rd_id_info, const char *key)
++{
++	int blen = 0, len;
++	int i, cnt;
++	const char *data, *bp;
++	struct rd_cmd_hdr *hdr;
++
++
++	data = of_get_property(np, key, &blen);
++	if (!data) {
++		pr_err("%s: failed, key=%s\n", __func__, key);
++		return -ENOMEM;
++	}
++
++	bp = data;
++	len = blen;
++	cnt = 0;
++	while (len >= sizeof(*hdr)) {
++		hdr = (struct rd_cmd_hdr *)bp;
++		if (hdr->id_count > len) {
++			pr_err("%s: rd cmd parse error", __func__);
++			return -EINVAL;
++		}
++		bp += sizeof(*hdr);
++		len -= sizeof(*hdr);
++		bp += hdr->id_count;
++		len -= hdr->id_count;
++		cnt++;
++	}
++
++	if (len != 0) {
++		pr_err("%s: rd cmd parse error!", __func__);
++		return -EINVAL;
++	}
++
++	rd_id_info->num_id_info = cnt;
++	rd_id_info->id_info = kzalloc(cnt * sizeof(struct common_id_info),
++						GFP_KERNEL);
++	if (!rd_id_info->id_info)
++		return -ENOMEM;
++
++	bp = data;
++	for (i = 0; i < cnt; i++) {
++		hdr = (struct rd_cmd_hdr *)bp;
++		bp += sizeof(*hdr);
++		rd_id_info->id_info[i].hdr = *hdr;
++		memcpy(rd_id_info->id_info[i].id, bp, hdr->id_count);
++		bp += hdr->id_count;
++	}
++
++	return 0;
++}
++
++static int of_parse_wr_cmd(struct device_node *np,
++                          struct sf_fb_dev_cmds *dev_cmds, const char *key)
++{
++	int blen = 0, len;
++	int i, cnt;
++	unsigned int alloc_bytes = 0;
++	const char *data, *bp;
++	char *buf;
++	struct wr_cmd_hdr *hdr;
++
++	data = of_get_property(np, key, &blen);
++	if (!data) {
++		pr_err("%s: failed, key=%s\n", __func__, key);
++		return -ENOMEM;
++	}
++
++	bp = data;
++	len = blen;
++	cnt = 0;
++	while (len >= sizeof(*hdr)) {
++		hdr = (struct wr_cmd_hdr *)bp;
++		if (hdr->dlen > len) {
++			pr_err("%s: wr parse error",
++					__func__);
++			return -EINVAL;
++		}
++		bp += sizeof(*hdr);
++		len -= sizeof(*hdr);
++		bp += hdr->dlen;
++		len -= hdr->dlen;
++		cnt++;
++		alloc_bytes += DSI_CMD_LEN(hdr);
++	}
++
++	if (len != 0) {
++		pr_err("%s: wr parse error!", __func__);
++		return -EINVAL;
++	}
++	dev_cmds->n_pack = cnt;
++	dev_cmds->cmds = kzalloc(_ALIGN_UP(alloc_bytes, 4), GFP_KERNEL);
++
++	if (IS_ERR_OR_NULL(dev_cmds->cmds))
++		return -ENOMEM;
++
++	bp = data;
++	buf = dev_cmds->cmds;
++	for (i = 0; i < cnt; i++) {
++		len = 0;
++		hdr = (struct wr_cmd_hdr *)bp;
++		len += sizeof(*hdr);
++		len += hdr->dlen;
++		memcpy(buf, bp, len);
++		bp += len;
++		buf += DSI_CMD_LEN(hdr);
++	}
++
++	return 0;
++}
++
++static int of_parse_gamma_ce_cmd(struct device_node *np,
++                          struct sf_fb_prefer_ce *color_info, const char *key)
++{
++	int types = 0;
++
++	/*FIX ME, we only support up to 3 types, do not overflow.
++	* when add new gamma/ce types, please increase COLOR_TYPE_MAX also
++	*/
++	color_info->info = kzalloc(COLOR_TYPE_MAX * sizeof(struct prefer_ce_info), GFP_KERNEL);
++	if (!color_info->info) {
++		pr_err("%s no memory!!\n", __func__);
++		return -ENOMEM;
++	}
++
++	if (!strcmp(key, "gamma")) {
++		if (of_find_property(np, "panel-gamma-warm-command", NULL)) {
++			of_parse_wr_cmd(np, &color_info->info[types].cmds, "panel-gamma-warm-command");
++			color_info->info[types].type = PREFER_WARM;
++			types++;
++		}
++		if (of_find_property(np, "panel-gamma-nature-command", NULL)) {
++			of_parse_wr_cmd(np, &color_info->info[types].cmds, "panel-gamma-nature-command");
++			color_info->info[types].type = PREFER_NATURE;
++			types++;
++		}
++		if (of_find_property(np, "panel-gamma-cool-command", NULL)) {
++			of_parse_wr_cmd(np, &color_info->info[types].cmds, "panel-gamma-cool-command");
++			color_info->info[types].type = PREFER_COOL;
++			types++;
++		}
++	} else if (!strcmp(key, "ce")) {
++		if (of_find_property(np, "panel-ce-bright-command", NULL)) {
++			of_parse_wr_cmd(np, &color_info->info[types].cmds, "panel-ce-bright-command");
++			color_info->info[types].type = CE_BRIGHT;
++			types++;
++		}
++		if (of_find_property(np, "panel-ce-std-command", NULL)) {
++			of_parse_wr_cmd(np, &color_info->info[types].cmds, "panel-ce-std-command");
++			color_info->info[types].type = CE_STANDARD;
++			types++;
++		}
++		if (of_find_property(np, "panel-ce-vivid-command", NULL)) {
++			of_parse_wr_cmd(np, &color_info->info[types].cmds, "panel-ce-vivid-command");
++			color_info->info[types].type = CE_VELVIA;
++			types++;
++		}
++	}
++	if (types > COLOR_TYPE_MAX) {
++		pr_err("%s types overflow %d\n", key, types);
++		types = COLOR_TYPE_MAX;
++	}
++	color_info->types = types;
++
++	pr_debug("%s support %d types\n", key, types);
++
++	return 0;
++}
++
++static int of_parse_reset_seq(struct device_node *np,
++                          u32 rst_seq[RST_SEQ_LEN], u32 *rst_len,
++		const char *name)
++{
++	int num = 0, i;
++	int rc;
++	struct property *data;
++	u32 tmp[RST_SEQ_LEN];
++
++	*rst_len = 0;
++	data = of_find_property(np, name, &num);
++	num /= sizeof(u32);
++	if (!data || !num || num > RST_SEQ_LEN || num % 2) {
++		pr_err("%s:%d, error reading %s, length found = %d\n",
++				__func__, __LINE__, name, num);
++	} else {
++		rc = of_property_read_u32_array(np, name, tmp, num);
++		if (rc)
++			pr_err("%s:%d, error reading %s, rc = %d\n",
++					__func__, __LINE__, name, rc);
++		else {
++			for (i = 0; i < num; ++i)
++				rst_seq[i] = tmp[i];
++			*rst_len = num;
++		}
++	}
++	return 0;
++}
++
++static int sf_displayer_parse_dt(struct device *dev,
++                           struct sf_fb_display_dev *pandev)
++{
++	int rc;
++	struct device_node *np = dev->of_node;
++	const char *data;
++	u32 temp_val;
++
++	dev_dbg(dev, "dsi panel parse dt\n");
++
++	pandev->name = of_get_property(np, "panel_name", NULL);
++	pr_info("panel_name: %s\n", pandev->name);
++
++	pandev->interface_info = STARFIVEFB_MIPI_IF;
++	data = of_get_property(np, "interface_info", NULL);
++	if (data) {
++		if (!strcmp(data, "mipi_interface"))
++			pandev->interface_info = STARFIVEFB_MIPI_IF;
++		else if (!strcmp(data, "rgb_interface"))
++			pandev->interface_info = STARFIVEFB_RGB_IF;
++	}
++	pandev->send_suspend_cmd_in_hs_mode = of_property_read_bool(np,
++		"send_suspend_cmd_in_hs");
++	/*must define within video mode*/
++	rc = of_property_read_u32(np, "refresh_en", &temp_val);
++	if (rc && (rc != -EINVAL)) {
++		pr_err("%s:%d, Unable to read refresh_en\n",
++						__func__, __LINE__);
++		return rc;
++	} else if (rc != -EINVAL)
++		pandev->refresh_en= temp_val;
++
++	pandev->auto_fps = of_property_read_bool(np, "dyn_fps");
++
++	rc = of_property_read_u32(np, "pixel-clock", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, pixel-clock not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	pandev->pclk= temp_val;
++
++	rc = of_property_read_u32(np, "panel-width", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, panel width not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	pandev->xres = temp_val;
++
++	rc = of_property_read_u32(np, "panel-height", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, panel width not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	pandev->yres = temp_val;
++
++	rc = of_property_read_u32(np, "physical-width", &temp_val);
++	if (rc && (rc != -EINVAL)) {
++		pr_err("%s:%d, Unable to read physical-width\n",
++						__func__, __LINE__);
++		return rc;
++	} else if (rc != -EINVAL)
++		pandev->width = temp_val;
++
++	rc = of_property_read_u32(np, "physical-height", &temp_val);
++	if (rc && (rc != -EINVAL)) {
++		pr_err("%s:%d, Unable to read physical-height\n",
++						__func__, __LINE__);
++		return rc;
++	} else if (rc != -EINVAL)
++		pandev->height = temp_val;
++
++	rc = of_property_read_u32(np, "bits-per-pixel", &temp_val);
++	if (rc) {
++		pr_err("%s:%d, bpp not specified\n",
++						__func__, __LINE__);
++		return -EINVAL;
++	}
++	pandev->bpp = temp_val;
++
++	pandev->flags = 0;
++	if (of_property_read_bool(np, "gamma-command-monolithic"))
++		pandev->flags |= PREFER_CMD_SEND_MONOLITHIC;
++	if (of_property_read_bool(np, "ce-command-monolithic"))
++		pandev->flags |= CE_CMD_SEND_MONOLITHIC;
++	if (of_property_read_bool(np, "resume-with-gamma"))
++		pandev->flags |= RESUME_WITH_PREFER;
++	if (of_property_read_bool(np, "resume-with-ce"))
++		pandev->flags |= RESUME_WITH_CE;
++
++	pandev->init_last = of_property_read_bool(np, "init_last");
++	/*mipi info parse*/
++	of_parse_mipi_timing(np, &pandev->timing.mipi);
++
++	of_parse_rd_cmd_info(np, &pandev->panel_id_info, "id_read_cmd_info");
++	if (of_find_property(np, "pre_id_cmd", NULL))
++		of_parse_wr_cmd(np, &pandev->panel_id_info.prepare_cmd, "pre_id_cmd");
++	of_parse_rd_cmd_info(np, &pandev->esd_id_info, "esd_read_cmd_info");
++
++	if (of_find_property(np, "pre_esd_cmd", NULL))
++		of_parse_wr_cmd(np, &pandev->esd_id_info.prepare_cmd, "pre_esd_cmd");
++
++	of_parse_wr_cmd(np, &pandev->cmds_init, "panel-on-command");
++	of_parse_wr_cmd(np, &pandev->cmds_suspend, "panel-off-command");
++
++	of_parse_reset_seq(np, pandev->rst_seq, &pandev->rst_seq_len, "reset-sequence");
++
++	of_parse_gamma_ce_cmd(np, &pandev->display_prefer_info, "gamma");
++	of_parse_gamma_ce_cmd(np, &pandev->display_ce_info, "ce");
++
++	dump_panel_info(dev, pandev);
++
++	return 0;
++}
++
++static int sf_displayer_probe(struct platform_device *pdev)
++{
++	struct sf_fb_display_dev *display_dev;
++	int ret;
++
++	if (pdev->dev.of_node) {
++		display_dev = devm_kzalloc(&pdev->dev,
++				sizeof(struct sf_fb_display_dev), GFP_KERNEL);
++		if (!display_dev) {
++			dev_err(&pdev->dev, "Failed to allocate memory\n");
++			return -ENOMEM;
++		}
++		ret = sf_displayer_parse_dt(&pdev->dev, display_dev);
++		if (ret) {
++			dev_err(&pdev->dev, "DT parsing failed\n");
++			return -ENODEV;
++		}
++	} else {
++		dev_err(&pdev->dev, "error: null panel device-tree node");
++		return -ENODEV;
++	}
++
++	display_dev->power = sf_displayer_power_on;
++	display_dev->reset = sf_displayer_reset;
++	display_dev->suspend = sf_displayer_suspend;
++	display_dev->resume = sf_displayer_resume;
++
++	sf_fb_display_dev_register(display_dev);
++
++	return 0;
++
++}
++
++static int __exit sf_displayer_remove(struct platform_device *dev)
++{
++	return 0;
++}
++
++static struct of_device_id sf_displayer_dt_match[] = {
++	{
++		.compatible = "starfive,display-dev",
++	},
++	{}
++};
++
++static struct platform_driver sf_displayer_driver = {
++	.probe = sf_displayer_probe,
++	.remove = __exit_p(sf_displayer_remove),
++	.driver = {
++		.name = "starfive,display-dev",
++		.owner = THIS_MODULE,
++		.of_match_table = sf_displayer_dt_match,
++	},
++};
++
++static int __init sf_displayer_init(void)
++{
++	return platform_driver_register(&sf_displayer_driver);
++}
++
++static void __exit sf_displayer_exit(void)
++{
++	platform_driver_unregister(&sf_displayer_driver);
++}
++
++subsys_initcall(sf_displayer_init);
++module_exit(sf_displayer_exit);
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("DISPLAYER DRIVER");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/video/fbdev/starfive/starfive_fb.c b/drivers/video/fbdev/starfive/starfive_fb.c
+new file mode 100644
+index 000000000000..4a8287aed0fe
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_fb.c
+@@ -0,0 +1,1125 @@
++/* driver/video/starfive/starfivefb.c
++**
++** This program is free software; you can redistribute it and/or modify
++** it under the terms of the GNU General Public License version 2 as
++** published by the Free Software Foundation.
++**
++** Copyright (C) 2020 StarFive, Inc.
++**
++** PURPOSE:	This files contains the driver of LCD controller and VPP.
++**
++** CHANGE HISTORY:
++**	Version		Date		Author		Description
++**	0.1.0		2020-10-07	starfive		created
++**
++*/
++
++#include <linux/errno.h>
++#include <linux/string.h>
++#include <linux/interrupt.h>
++#include <linux/compiler.h>
++#include <linux/slab.h>
++#include <linux/fb.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/ioport.h>
++#include <linux/cpufreq.h>
++#include <linux/platform_device.h>
++#include <linux/dma-mapping.h>
++#include <linux/err.h>
++#include <linux/uaccess.h>
++#include <linux/notifier.h>
++#include <linux/mtd/mtd.h>
++#include <linux/workqueue.h>
++#include <linux/module.h>
++#include <linux/leds.h>
++#include <asm/io.h>
++#include <asm/irq.h>
++#include <asm/div64.h>
++#include <asm/cacheflush.h>
++#include <linux/of_gpio.h>
++#include <linux/of_reserved_mem.h>
++#include <video/stf-vin.h>
++
++#include "starfive_fb.h"
++#include "starfive_lcdc.h"
++#include "starfive_vpp.h"
++#include "starfive_display_dev.h"
++
++static struct sf_fb_data *stf_dev = NULL;
++
++static DEFINE_MUTEX(stf_mutex);
++
++//#define SF_FB_DEBUG	1
++#ifdef SF_FB_DEBUG
++	#define FB_PRT(format, args...)  printk(KERN_DEBUG "[FB]: " format, ## args)
++	#define FB_INFO(format, args...) printk(KERN_INFO "[FB]: " format, ## args)
++	#define FB_ERR(format, args...)	printk(KERN_ERR "[FB]: " format, ## args)
++#else
++	#define FB_PRT(x...)  do{} while(0)
++	#define FB_INFO(x...)  do{} while(0)
++	#define FB_ERR(x...)  do{} while(0)
++#endif
++
++static const struct res_name mem_res_name[] = {
++	{"lcdc"},
++	{"vpp0"},
++	{"vpp1"},
++	{"vpp2"},
++	{"clk"},
++	{"rst"},
++	{"sys"}
++};
++
++static u32 sf_fb_clkread32(struct sf_fb_data *sf_dev, u32 reg)
++{
++	return ioread32(sf_dev->base_clk + reg);
++}
++
++static void sf_fb_clkwrite32(struct sf_fb_data *sf_dev, u32 reg, u32 val)
++{
++	iowrite32(val, sf_dev->base_clk + reg);
++}
++
++static int sf_fb_lcdc_clk_cfg(struct sf_fb_data *sf_dev)
++{
++	u32 tmp_val = 0;
++	int ret = 0;
++
++	switch(sf_dev->display_info.xres) {
++		case 640:
++			dev_warn(sf_dev->dev, "640 do nothing! need to set clk\n");
++			break;
++		case 1280:
++			dev_warn(sf_dev->dev, "1280 do nothing! need to set clk\n");
++			break;
++		case 1920:
++			tmp_val = sf_fb_clkread32(sf_dev, CLK_LCDC_OCLK_CTRL);
++			tmp_val &= ~(0x3F);
++			tmp_val |= (24 & 0x3F);
++			sf_fb_clkwrite32(sf_dev, CLK_LCDC_OCLK_CTRL, tmp_val);
++			break;
++		default:
++			dev_err(sf_dev->dev, "Fail to allocate video RAM\n");
++			ret = -EINVAL;
++	}
++
++	return ret;
++}
++
++static int vin_frame_complete_notify(struct notifier_block *nb,
++				      unsigned long val, void *v)
++{
++	struct vin_params *psy = v;
++	struct sf_fb_data *sf_dev = stf_dev;
++	unsigned int address;
++	unsigned int u_addr, v_addr, size;
++	unsigned int y_rgb_offset, u_offset, v_offset;
++	int i = 0;
++
++	address = psy->paddr;
++
++	if(NULL == sf_dev) {
++		return NOTIFY_OK;
++	}
++
++	if(sf_dev->pp_conn_lcdc < 0) {
++		dev_warn(sf_dev->dev, "%s NO use PPx\n",__func__);
++	} else {
++		if(sf_dev->pp[sf_dev->pp_conn_lcdc].src.format >= COLOR_RGB888_ARGB) {
++	        u_addr = 0;
++	        v_addr = 0;
++	        y_rgb_offset = 0;
++	        u_offset = 0;
++	        v_offset = 0;
++		} else if (COLOR_YUV420_NV21 == sf_dev->pp[sf_dev->pp_conn_lcdc].src.format) {
++            u_addr = address + size + 1;
++            v_addr = address + size;
++            y_rgb_offset = 0;
++            u_offset = 0;
++            v_offset = size;
++		} else {
++			dev_err(sf_dev->dev, "format %d not SET\n", sf_dev->pp[sf_dev->pp_conn_lcdc].src.format);
++			return -EINVAL;
++		}
++		pp_srcAddr_next(sf_dev, sf_dev->pp_conn_lcdc, address, u_addr, v_addr);
++		pp_srcOffset_cfg(sf_dev, sf_dev->pp_conn_lcdc, y_rgb_offset, u_offset, v_offset);
++		//pp_run(sf_dev, sf_dev->pp_conn_lcdc, PP_RUN);
++	}
++
++	return NOTIFY_OK;
++}
++
++static int sf_get_mem_res(struct platform_device *pdev, struct sf_fb_data *sf_dev)
++{
++	struct device *dev = &pdev->dev;
++	struct resource	*res;
++	void __iomem *regs;
++	char *name;
++	int i;
++
++	for (i = 0; i < sizeof(mem_res_name)/sizeof(struct res_name); i++) {
++	    name = (char *)(& mem_res_name[i]);
++		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, name);
++		regs = devm_ioremap_resource(dev, res);
++		if (IS_ERR(regs))
++			return PTR_ERR(regs);
++
++		if(!strcmp(name, "lcdc")) {
++			sf_dev->base_lcdc = regs;
++		} else if (!strcmp(name, "vpp0")) {
++			sf_dev->base_vpp0 = regs;
++		} else if (!strcmp(name, "vpp1")) {
++			sf_dev->base_vpp1 = regs;
++		} else if (!strcmp(name, "vpp2")) {
++			sf_dev->base_vpp2 = regs;
++		} else if (!strcmp(name, "clk")) {
++			sf_dev->base_clk = regs;
++		} else if (!strcmp(name, "rst")) {
++			sf_dev->base_rst = regs;
++		} else if (!strcmp(name, "sys")) {
++			sf_dev->base_sys = regs;
++		} else {
++			dev_err(&pdev->dev, "Could not match resource name\n");
++		}
++	}
++
++	return 0;
++}
++
++static void sf_fb_get_var(struct fb_var_screeninfo *var, struct sf_fb_data *sf_dev)
++{
++	var->xres		= sf_dev->display_info.xres;
++	var->yres		= sf_dev->display_info.yres;
++	var->bits_per_pixel	= sf_dev->display_dev->bpp;
++	var->pixclock		= 1000000 / (sf_dev->pixclock / 1000000);
++	var->hsync_len		= sf_dev->display_info.hsync_len;
++	var->vsync_len		= sf_dev->display_info.vsync_len;
++	var->left_margin	= sf_dev->display_info.left_margin;
++	var->right_margin	= sf_dev->display_info.right_margin;
++	var->upper_margin	= sf_dev->display_info.upper_margin;
++	var->lower_margin	= sf_dev->display_info.lower_margin;
++	var->sync		= sf_dev->display_info.sync;
++	var->vmode		= FB_VMODE_NONINTERLACED;
++}
++
++/*
++ * sf_fb_set_par():
++ *	Set the user defined part of the display for the specified console
++ */
++static int sf_fb_set_par(struct fb_info *info)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++	struct fb_var_screeninfo *var = &info->var;
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++
++	if (var->bits_per_pixel == 16 ||
++		var->bits_per_pixel == 18 ||
++		var->bits_per_pixel == 24 ||
++		var->bits_per_pixel == 32)
++		sf_dev->fb.fix.visual = FB_VISUAL_TRUECOLOR;
++	else if (!sf_dev->cmap_static)
++		sf_dev->fb.fix.visual = FB_VISUAL_PSEUDOCOLOR;
++	else {
++		/*
++		 * Some people have weird ideas about wanting static
++		 * pseudocolor maps.  I suspect their user space
++		 * applications are broken.
++		 */
++		sf_dev->fb.fix.visual = FB_VISUAL_STATIC_PSEUDOCOLOR;
++	}
++
++	sf_dev->fb.fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
++
++	if (sf_dev->fb.var.bits_per_pixel == 16 ||
++		sf_dev->fb.var.bits_per_pixel == 18 ||
++		sf_dev->fb.var.bits_per_pixel == 24 ||
++		sf_dev->fb.var.bits_per_pixel == 32)
++		fb_dealloc_cmap(&sf_dev->fb.cmap);
++	else
++		fb_alloc_cmap(&sf_dev->fb.cmap,
++			1 << sf_dev->fb.var.bits_per_pixel, 0);
++
++	/*for fbcon, it need cmap*/
++	switch(var->bits_per_pixel) {
++		case 16:
++			var->red.offset   = 11; var->red.length   = 5;
++			var->green.offset = 5;	var->green.length = 6;
++			var->blue.offset  = 0;	var->blue.length  = 5;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		case 18:
++			var->red.offset   = 12; var->red.length   = 6;
++			var->green.offset = 6;	var->green.length = 6;
++			var->blue.offset  = 0;	var->blue.length  = 6;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		case 24:
++			var->red.offset   = 16; var->red.length   = 8;
++			var->green.offset = 8;	var->green.length = 8;
++			var->blue.offset  = 0;	var->blue.length  = 8;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		case 32:
++			var->red.offset   = 16; var->red.length   = 8;
++			var->green.offset = 8;	var->green.length = 8;
++			var->blue.offset  = 0;	var->blue.length  = 8;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		default:
++			var->red.offset = var->green.offset = \
++				var->blue.offset = var->transp.offset = 0;
++			var->red.length   = 8;
++			var->green.length = 8;
++			var->blue.length  = 8;
++			var->transp.length = 0;
++	}
++
++	return 0;
++}
++
++static int sf_fb_open(struct fb_info *info, int user)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++
++	sf_fb_set_par(info);
++	lcdc_run(sf_dev, sf_dev->winNum, LCDC_RUN);
++
++	//sf_fb_init_layer(layer, &info->var);
++	//if (layer->no == sf_fb_ids[0])
++		//sf_fb_enable_layer(layer);
++	return 0;
++}
++
++static int sf_fb_release(struct fb_info *info, int user)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++
++	lcdc_run(sf_dev, sf_dev->winNum, LCDC_STOP);
++
++	return 0;
++}
++
++static int sf_fb_ioctl(struct fb_info *info, unsigned cmd, unsigned long arg)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++	return 0;
++}
++
++/*
++ *	sf_fb_check_var():
++ *	  Get the video params out of 'var'. If a value doesn't fit, round it up,
++ *	  if it's too big, return -EINVAL.
++ *
++ *	  Round up in the following order: bits_per_pixel, xres,
++ *	  yres, xres_virtual, yres_virtual, xoffset, yoffset, grayscale,
++ *	  bitfields, horizontal timing, vertical timing.
++ */
++static int sf_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++
++	if (var->xres < MIN_XRES)
++		var->xres = MIN_XRES;
++	if (var->yres < MIN_YRES)
++		var->yres = MIN_YRES;
++
++	sf_fb_get_var(var, sf_dev);
++
++	var->xres_virtual = var->xres;
++	var->yres_virtual = var->yres * sf_dev->buf_num;
++	/*
++	 * Setup the RGB parameters for this display.
++	 */
++	switch(var->bits_per_pixel) {
++		case 16:
++			var->red.offset   = 11; var->red.length   = 5;
++			var->green.offset = 5;	var->green.length = 6;
++			var->blue.offset  = 0;	var->blue.length  = 5;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		case 18:
++			var->red.offset   = 12; var->red.length   = 6;
++			var->green.offset = 6;	var->green.length = 6;
++			var->blue.offset  = 0;	var->blue.length  = 6;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		case 24:
++			var->red.offset   = 16; var->red.length   = 8;
++			var->green.offset = 8;	var->green.length = 8;
++			var->blue.offset  = 0;	var->blue.length  = 8;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		case 32:
++			var->red.offset   = 16; var->red.length   = 8;
++			var->green.offset = 8;	var->green.length = 8;
++			var->blue.offset  = 0;	var->blue.length  = 8;
++			var->transp.offset = var->transp.length = 0;
++			break;
++		default:
++			var->red.offset = var->green.offset = \
++				var->blue.offset = var->transp.offset = 0;
++			var->red.length   = 8;
++			var->green.length = 8;
++			var->blue.length  = 8;
++			var->transp.length = 0;
++	}
++
++	return 0;
++}
++
++static inline u_int sf_chan_to_field(u_int chan, struct fb_bitfield *bf)
++{
++	chan &= 0xffff;
++	chan >>= 16 - bf->length;
++	return chan << bf->offset;
++}
++
++static int sf_fb_setcolreg(u_int regno, u_int red, u_int green,
++			u_int blue, u_int trans, struct fb_info *info)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++	unsigned int val;
++	int ret = 1;
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++	/*
++	 * If inverse mode was selected, invert all the colours
++	 * rather than the register number.  The register number
++	 * is what you poke into the framebuffer to produce the
++	 * colour you requested.
++	 */
++	if (sf_dev->cmap_inverse) {
++		red	= 0xffff - red;
++		green	= 0xffff - green;
++		blue	= 0xffff - blue;
++	}
++
++	/*
++	 * If greyscale is true, then we convert the RGB value
++	 * to greyscale no matter what visual we are using.
++	 */
++	if (sf_dev->fb.var.grayscale)
++		red = green = blue = (19595 * red + 38470 * green +
++					7471 * blue) >> 16;
++
++	switch (sf_dev->fb.fix.visual) {
++	case FB_VISUAL_TRUECOLOR:
++		/*
++		 * 16-bit True Colour.	We encode the RGB value
++		 * according to the RGB bitfield information.
++		 */
++		if (regno < 16) {
++			u32 *pal = sf_dev->fb.pseudo_palette;
++
++			val = sf_chan_to_field(red, &sf_dev->fb.var.red);
++			val |= sf_chan_to_field(green, &sf_dev->fb.var.green);
++			val |= sf_chan_to_field(blue, &sf_dev->fb.var.blue);
++
++			pal[regno] = val;
++			ret = 0;
++		}
++	break;
++
++	case FB_VISUAL_STATIC_PSEUDOCOLOR:
++	case FB_VISUAL_PSEUDOCOLOR:
++		/* haven't support this function. */
++	break;
++	}
++
++	return 0;
++}
++
++/*
++ * sf_fb_set_addr():
++ *	Configures LCD Controller based on entries in var parameter.  Settings are
++ *	only written to the controller if changes were made.
++ */
++static int sf_fb_set_addr(struct sf_fb_data *sf_dev, struct fb_var_screeninfo *var)
++{
++	unsigned int address;
++	unsigned int offset;
++	unsigned int u_addr, v_addr, size;
++	unsigned int y_rgb_offset, u_offset, v_offset;
++	int i = 0;
++
++	offset = var->yoffset * sf_dev->fb.fix.line_length +
++				var->xoffset * var->bits_per_pixel / 8;
++	address = sf_dev->fb.fix.smem_start + offset;
++	size = var->xres * var->yres;
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++
++	if(sf_dev->pp_conn_lcdc < 0) {
++		dev_warn(sf_dev->dev, "%s NO use PPx\n",__func__);
++	} else {
++			if(sf_dev->pp[sf_dev->pp_conn_lcdc].src.format >= COLOR_RGB888_ARGB) {
++			u_addr = 0;
++			v_addr = 0;
++			y_rgb_offset = 0;
++			u_offset = 0;
++			v_offset = 0;
++		} else if (COLOR_YUV420_NV21 == sf_dev->pp[sf_dev->pp_conn_lcdc].src.format) {
++			u_addr = address + size + 1;
++			v_addr = address + size;
++			y_rgb_offset = 0;
++			u_offset = 0;
++			v_offset = size;
++		} else {
++			dev_err(sf_dev->dev, "format %d not SET\n", sf_dev->pp[sf_dev->pp_conn_lcdc].src.format);
++			return -EINVAL;
++		}
++		pp_srcAddr_next(sf_dev, sf_dev->pp_conn_lcdc, address, u_addr, v_addr);
++		pp_srcOffset_cfg(sf_dev, sf_dev->pp_conn_lcdc, y_rgb_offset, u_offset, v_offset);
++		pp_nxtAddr_load(sf_dev, sf_dev->pp_conn_lcdc, 0x1, (i & 0x1));
++		pp_run(sf_dev, sf_dev->pp_conn_lcdc, PP_RUN);
++	}
++
++	return 0;
++}
++
++
++static int sf_fb_pan_display(struct fb_var_screeninfo *var,
++				struct fb_info *info)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++
++	sf_fb_set_addr(sf_dev, var);
++
++	switch(sf_dev->display_dev->interface_info) {
++		case STARFIVEFB_MIPI_IF:
++		case STARFIVEFB_HDMI_IF:
++			//lcdc_run(sf_dev,0x2, 0x1);
++			break;
++		case STARFIVEFB_RGB_IF:
++			break;
++		default:
++			break;
++	}
++
++	return 0;
++}
++
++static int sf_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
++{
++	unsigned long off = vma->vm_pgoff << PAGE_SHIFT;
++	unsigned long start;
++	u32 len;
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++	/* frame buffer memory */
++	start = info->fix.smem_start;
++	len = PAGE_ALIGN((start & ~PAGE_MASK) + info->fix.smem_len);
++
++	if (off >= len) {
++		/* memory mapped io */
++		off -= len;
++		if (info->var.accel_flags) {
++			mutex_unlock(&info->mm_lock);
++			return -EINVAL;
++		}
++		start = info->fix.mmio_start;
++		len = PAGE_ALIGN((start & ~PAGE_MASK) + info->fix.mmio_len);
++	}
++
++	start &= PAGE_MASK;
++	if ((vma->vm_end - vma->vm_start + off) > len) {
++		return -EINVAL;
++	}
++
++	off += start;
++	vma->vm_pgoff = off >> PAGE_SHIFT;
++	/* This is an IO map - tell maydump to skip this VMA */
++//	vma->vm_flags |= VM_IO | VM_RESERVED;
++	vma->vm_flags |= VM_IO;
++
++//	if (!(layer->parent->pdata->flags & COMIPFB_CACHED_BUFFER))
++//		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
++
++	if (io_remap_pfn_range(vma, vma->vm_start, off >> PAGE_SHIFT,
++			     vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
++		return -EAGAIN;
++	}
++
++	return 0;
++}
++
++static int sf_fb_blank(int blank, struct fb_info *info)
++{
++	struct sf_fb_data *sf_dev = container_of(info, struct sf_fb_data, fb);
++	int ret;
++
++	FB_PRT("%s,%d\n",__func__, __LINE__);
++
++	switch (blank) {
++		case FB_BLANK_UNBLANK:
++			lcdc_run(sf_dev,0x2, 0x1);
++			break;
++		case FB_BLANK_NORMAL:
++		case FB_BLANK_VSYNC_SUSPEND:
++		case FB_BLANK_HSYNC_SUSPEND:
++		case FB_BLANK_POWERDOWN:
++			lcdc_run(sf_dev,0x2, 0x0);
++			break;
++		default:
++			ret = -EINVAL;
++	}
++
++	return ret;
++}
++
++static struct fb_ops sf_fb_ops = {
++	.owner		= THIS_MODULE,
++	.fb_open	= sf_fb_open,
++	.fb_release	= sf_fb_release,
++	.fb_ioctl	= sf_fb_ioctl,
++	.fb_check_var	= sf_fb_check_var,
++	.fb_set_par	= sf_fb_set_par,
++	.fb_setcolreg	= sf_fb_setcolreg,
++	.fb_fillrect	= cfb_fillrect,
++	.fb_copyarea	= cfb_copyarea,
++	.fb_imageblit	= cfb_imageblit,
++	.fb_pan_display	= sf_fb_pan_display,
++	.fb_mmap	= sf_fb_mmap,
++	.fb_blank	= sf_fb_blank,
++};
++
++static int sf_fb_map_video_memory(struct sf_fb_data *sf_dev)
++{
++	int  ret;
++	dma_addr_t fb_phys_addr = 0;
++
++	ret = of_reserved_mem_device_init(sf_dev->dev);
++	if(ret) {
++		dev_err(sf_dev->dev, "Could not get reserved memory\n");
++		return ret;
++	}
++	sf_dev->fb.screen_base = dma_alloc_coherent(sf_dev->dev, 0x1000000, &fb_phys_addr, GFP_KERNEL);
++	sf_dev->fb.screen_size = 0x1000000;
++
++	sf_dev->fb.fix.smem_start = fb_phys_addr;
++
++	return 0;
++}
++
++static int sf_fb_init(struct sf_fb_data *sf_dev)
++{
++
++	INIT_LIST_HEAD(&sf_dev->fb.modelist);
++	sf_dev->fb.device = sf_dev->dev;
++	sf_dev->fb.fbops = &sf_fb_ops;
++	sf_dev->fb.flags = FBINFO_DEFAULT;
++	sf_dev->fb.node = -1;
++	sf_dev->fb.pseudo_palette = sf_dev->pseudo_pal;
++	sf_dev->fb.mode = &sf_dev->display_info;
++
++	strcpy(sf_dev->fb.fix.id, STARFIVE_NAME);
++	sf_dev->fb.fix.type = FB_TYPE_PACKED_PIXELS;
++	sf_dev->fb.fix.type_aux = 0;
++	sf_dev->fb.fix.xpanstep = 0;
++	sf_dev->fb.fix.ypanstep = 1;
++	sf_dev->fb.fix.ywrapstep = 0;
++	sf_dev->fb.fix.accel = FB_ACCEL_NONE;
++
++/*	sf_dev->win_x_size = sf_dev->display_info.xres;
++	sf_dev->win_y_size = sf_dev->display_info.yres;
++	sf_dev->src_width = sf_dev->display_info.xres;
++	sf_dev->alpha = 255; // 255 = solid 0 = transparent
++	sf_dev->alpha_en = 0;
++	sf_dev->input_format = LCDC_LAYER_INPUT_FORMAT_ARGB8888;*/
++	sf_dev->buf_num = BUFFER_NUMS;
++
++	sf_fb_get_var(&sf_dev->fb.var, sf_dev);
++	sf_dev->fb.var.xres_virtual = sf_dev->display_info.xres;
++	sf_dev->fb.var.yres_virtual = sf_dev->display_info.yres * sf_dev->buf_num;
++	sf_dev->fb.var.xoffset = 0;
++	sf_dev->fb.var.yoffset = 0;
++	sf_dev->fb.var.nonstd = 0;
++	sf_dev->fb.var.activate = FB_ACTIVATE_NOW;
++	sf_dev->fb.var.width = sf_dev->display_dev->width;
++	sf_dev->fb.var.height = sf_dev->display_dev->height;
++	sf_dev->fb.var.accel_flags = 0;
++
++/*	layer->flags = 0;
++	layer->cmap_inverse = 0;
++	layer->cmap_static = 0;
++*/
++	if (sf_dev->display_dev->bpp <= 16 ) {
++		/* 8, 16 bpp */
++		sf_dev->buf_size = sf_dev->display_info.xres *
++			sf_dev->display_info.yres * sf_dev->display_dev->bpp / 8;
++	} else {
++		/* 18, 32 bpp*/
++		sf_dev->buf_size = sf_dev->display_info.xres * sf_dev->display_info.yres * 4;
++	}
++
++	sf_dev->fb.fix.smem_len = sf_dev->buf_size * sf_dev->buf_num;
++
++	if (sf_fb_map_video_memory(sf_dev)) {
++		dev_err(sf_dev->dev, "Fail to allocate video RAM\n");
++		return -ENOMEM;
++	}
++
++	//layer->buf_addr = layer->map_dma;
++
++	return 0;
++}
++
++
++static int sf_fbinfo_init(struct device *dev, struct sf_fb_data *sf_dev)
++{
++	struct sf_fb_display_dev *display_dev = NULL;
++
++	display_dev = sf_fb_display_dev_get(sf_dev);
++	if (NULL == display_dev) {
++		dev_err(sf_dev->dev, "Could not get display dev\n");
++	}
++	sf_dev->display_dev = display_dev;
++
++	sf_dev->pixclock = display_dev->pclk;
++
++/*	clk_set_rate(sf_dev->mclk, sf_dev->pixclock);
++	sf_dev->pixclock = clk_get_rate(sf_dev->mclk);
++	dev_info(sf_dev->dev,"sf_dev->pixclock = %d\n", sf_dev->pixclock);
++*/
++	switch(display_dev->interface_info) {
++		case STARFIVEFB_MIPI_IF:
++			if (display_dev->timing.mipi.display_mode == MIPI_VIDEO_MODE){
++				sf_dev->refresh_en = 1;
++				display_dev->refresh_en = 1;
++				sf_dev->display_info.name = display_dev->name;
++				sf_dev->display_info.xres = display_dev->xres;
++				sf_dev->display_info.yres = display_dev->yres;
++				sf_dev->display_info.pixclock = 1000000 / (sf_dev->pixclock / 1000000);
++				sf_dev->display_info.sync = 0;
++				sf_dev->display_info.left_margin = display_dev->timing.mipi.videomode_info.hbp;
++				sf_dev->display_info.right_margin = display_dev->timing.mipi.videomode_info.hfp;
++				sf_dev->display_info.upper_margin = display_dev->timing.mipi.videomode_info.vbp;
++				sf_dev->display_info.lower_margin = display_dev->timing.mipi.videomode_info.vfp;
++				sf_dev->display_info.hsync_len = display_dev->timing.mipi.videomode_info.hsync;
++				sf_dev->display_info.vsync_len = display_dev->timing.mipi.videomode_info.vsync;
++				if (display_dev->timing.mipi.videomode_info.sync_pol == COMIPFB_HSYNC_HIGH_ACT)
++					sf_dev->display_info.sync = FB_SYNC_HOR_HIGH_ACT;
++				if (display_dev->timing.mipi.videomode_info.sync_pol == COMIPFB_VSYNC_HIGH_ACT)
++					sf_dev->display_info.sync = FB_SYNC_VERT_HIGH_ACT;
++			}else if (display_dev->timing.mipi.display_mode == MIPI_COMMAND_MODE){
++				sf_dev->display_info.name = display_dev->name;
++				sf_dev->display_info.xres = display_dev->xres;
++				sf_dev->display_info.yres = display_dev->yres;
++				sf_dev->display_info.pixclock = 1000000 / (sf_dev->pixclock / 1000000);
++				sf_dev->display_info.left_margin = 0;
++				sf_dev->display_info.right_margin = 0;
++				sf_dev->display_info.upper_margin = 0;
++				sf_dev->display_info.lower_margin = 0;
++				sf_dev->display_info.hsync_len = 0;
++				sf_dev->display_info.vsync_len = 0;
++				sf_dev->display_info.sync = 0;
++			}
++			break;
++		case STARFIVEFB_RGB_IF:
++			break;
++		default:
++			break;
++	}
++
++	if (sf_fb_init(sf_dev)) {
++		dev_err(sf_dev->dev, "starfive fb init fail\n");
++		return -ENOMEM;
++	}
++
++	return 0;
++}
++
++static int stfb_open(struct inode *inode, struct file *file)
++{
++	int ret = 0;
++
++	mutex_lock(&stf_mutex);
++	if (stf_dev != NULL)
++		file->private_data = stf_dev;
++	else {
++		ret = -ENODEV;
++		pr_err("stf_dev is NULL !\n");
++	}
++	mutex_unlock(&stf_mutex);
++
++	return ret;
++}
++
++static ssize_t stfb_read(struct file *file, char __user * buf,
++			size_t count, loff_t * ppos)
++{
++	int ret = 1;
++
++	return ret;
++}
++
++static int stfb_release(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static const struct vm_operations_struct mmap_mem_ops = {
++#ifdef CONFIG_HAVE_IOREMAP_PROT
++	.access = generic_access_phys
++#endif
++};
++
++static int stfb_mmap(struct file *file, struct vm_area_struct *vma)
++{
++	struct sf_fb_data *sf_dev = file->private_data;
++	size_t size = vma->vm_end - vma->vm_start;
++	//unsigned long pfn = sf_dev->fb.fix.smem_start + 0x1000000;
++	unsigned long pfn = 0xfc000000;
++
++	vma->vm_ops = &mmap_mem_ops;
++	/* Remap-pfn-range will mark the range VM_IO */
++	if (remap_pfn_range(vma,
++			    vma->vm_start,
++			    pfn >> PAGE_SHIFT,
++			    size, vma->vm_page_prot)) {
++		return -EAGAIN;
++	}
++
++	return 0;
++}
++
++static long int stfb_ioctl(struct file *file, unsigned int cmd, long unsigned int arg)
++{
++	return 0;
++}
++
++
++static const struct file_operations stfb_fops = {
++	.owner = THIS_MODULE,
++	.open = stfb_open,
++	.read = stfb_read,
++	.release = stfb_release,
++	.unlocked_ioctl = stfb_ioctl,
++	.mmap = stfb_mmap,
++};
++
++static void sf_fb_pp_enable_intr(struct sf_fb_data *sf_dev, int enable) {
++	int pp_id;
++
++	for (pp_id = 0; pp_id < PP_NUM; pp_id++) {
++		if(1 == sf_dev->pp[pp_id].inited) {
++			if (enable) {
++				pp_enable_intr(sf_dev, pp_id);
++			} else {
++				pp_disable_intr(sf_dev, pp_id);
++			}
++		}
++	}
++}
++
++static int sf_fb_pp_get_2lcdc_id(struct sf_fb_data *sf_dev) {
++	int pp_id;
++
++	for (pp_id = 0; pp_id < PP_NUM; pp_id++) {
++		if(1 == sf_dev->pp[pp_id].inited) {
++			if ((1 == sf_dev->pp[pp_id].fifo_out)
++				&& (0 == sf_dev->pp[pp_id].bus_out)) {
++				return pp_id;
++			}
++		}
++	}
++
++	if (pp_id == PP_NUM - 1)
++		dev_warn(sf_dev->dev, "NO pp connect to LCDC\n");
++
++	return -ENODEV;
++}
++
++static int sf_fb_lcdc_init(struct sf_fb_data *sf_dev) {
++	int pp_id;
++	int lcd_in_pp;
++	int winNum;
++
++	pp_id = sf_dev->pp_conn_lcdc;
++	if (pp_id < 0) {
++		dev_warn(sf_dev->dev, "NO pp connect to LCDC\n");
++	} else {
++		lcd_in_pp = (pp_id == 0) ? LCDC_IN_VPP0 : ((pp_id == 1) ? LCDC_IN_VPP1 : LCDC_IN_VPP2);
++		winNum = lcdc_win_sel(sf_dev, lcd_in_pp);
++		sf_dev->winNum = winNum;
++		lcdc_config(sf_dev, winNum);
++	}
++
++	return 0;
++}
++
++static int sf_fb_pp_video_mode_init(struct sf_fb_data *sf_dev, struct pp_video_mode *src,
++		struct pp_video_mode *dst, int pp_id) {
++
++	if ((NULL == src) || (NULL == dst)) {
++		dev_err(sf_dev->dev, "Invalid argument!\n");
++		return -EINVAL;
++	}
++
++	if ((pp_id < PP_NUM) && (pp_id >= 0 )) {
++		src->format = sf_dev->pp[pp_id].src.format;
++		src->width = sf_dev->pp[pp_id].src.width;
++		src->height = sf_dev->pp[pp_id].src.height;
++		src->addr = 0xf9000000;
++
++		dst->format = sf_dev->pp[pp_id].dst.format;
++		dst->width = sf_dev->pp[pp_id].dst.width;
++		dst->height = sf_dev->pp[pp_id].dst.height;
++		if(true == sf_dev->pp[pp_id].bus_out)	/*out to ddr*/
++			dst->addr = 0xfc000000;
++		else if (true == sf_dev->pp[pp_id].fifo_out)	/*out to lcdc*/
++			dst->addr = 0;
++	} else {
++		dev_err(sf_dev->dev, "pp_id %d is not support\n", pp_id);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int sf_fb_pp_init(struct sf_fb_data *sf_dev) {
++	int pp_id;
++	int ret = 0;
++	struct pp_video_mode src, dst;
++
++	for (pp_id = 0; pp_id < PP_NUM; pp_id++) {
++		if(1 == sf_dev->pp[pp_id].inited) {
++				ret = sf_fb_pp_video_mode_init(sf_dev, &src, &dst, pp_id);
++				if (!ret)
++					pp_config(sf_dev, pp_id, &src, &dst);
++		}
++	}
++
++	return ret;
++}
++
++static int sf_fb_parse_dt(struct device *dev, struct sf_fb_data *sf_dev) {
++	int ret;
++	struct device_node *np = dev->of_node;
++	struct device_node *child;
++	int pp_num = 0;
++
++	if(!np)
++		return -EINVAL;
++
++	sf_dev->pp = devm_kzalloc(dev, sizeof(struct pp_mode) * PP_NUM, GFP_KERNEL);
++	if (!sf_dev->pp) {
++		dev_err(dev,"allocate memory for platform data failed\n");
++		return -ENOMEM;
++	}
++
++	for_each_child_of_node(np, child) {
++		if (of_property_read_u32(child, "pp-id", &pp_num)) {
++			dev_err(dev,"Missing pp-id property in the DT.\n");
++			ret = -EINVAL;
++			continue;
++		}
++		if (pp_num >= PP_NUM)
++			dev_err(dev," pp-id number %d is not support!\n", pp_num);
++
++		sf_dev->pp[pp_num].pp_id = pp_num;
++		sf_dev->pp[pp_num].bus_out = of_property_read_bool(child, "sys-bus-out");
++		sf_dev->pp[pp_num].fifo_out = of_property_read_bool(child, "fifo-out");
++		if (of_property_read_u32(child, "src-format", &sf_dev->pp[pp_num].src.format)) {
++			dev_err(dev,"Missing src-format property in the DT.\n");
++			ret = -EINVAL;
++		}
++		if (of_property_read_u32(child, "src-width", &sf_dev->pp[pp_num].src.width)) {
++			dev_err(dev,"Missing src-width property in the DT. w %d \n", sf_dev->pp[pp_num].src.width);
++			ret = -EINVAL;
++		}
++		if (of_property_read_u32(child, "src-height", &sf_dev->pp[pp_num].src.height)) {
++			dev_err(dev,"Missing src-height property in the DT.\n");
++			ret = -EINVAL;
++		}
++		if (of_property_read_u32(child, "dst-format", &sf_dev->pp[pp_num].dst.format)) {
++			dev_err(dev,"Missing dst-format property in the DT.\n");
++			ret = -EINVAL;
++		}
++		if (of_property_read_u32(child, "dst-width", &sf_dev->pp[pp_num].dst.width)) {
++			dev_err(dev,"Missing dst-width property in the DT.\n");
++			ret = -EINVAL;
++		}
++		if (of_property_read_u32(child, "dst-height", &sf_dev->pp[pp_num].dst.height)) {
++			dev_err(dev,"Missing dst-height property in the DT.\n");
++			ret = -EINVAL;
++		}
++		sf_dev->pp[pp_num].inited = 1;
++	}
++
++	return ret;
++}
++
++//#define FB_BUFF_VIN
++
++static int starfive_fb_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct sf_fb_data *sf_dev;
++	int ret;
++
++	dev_info(dev, "%s\n", __func__);
++
++	sf_dev = devm_kzalloc(&pdev->dev, sizeof(struct sf_fb_data), GFP_KERNEL);
++	if (!sf_dev)
++		return -ENOMEM;
++
++	if (sf_get_mem_res(pdev, sf_dev)) {
++		dev_err(dev, "get memory resource FAIL\n");
++		return -ENOMEM;
++	}
++
++	ret = sf_fb_parse_dt(dev, sf_dev);
++
++	sf_dev->vin.notifier_call = vin_frame_complete_notify;
++	sf_dev->vin.priority = 0;
++	ret = vin_notifier_register(&sf_dev->vin);
++	if (ret) {
++		return ret;
++	}
++
++	sf_dev->dis_dev_name = "adv_7513_1080p";
++	sf_dev->cmap_inverse = 0;
++	sf_dev->cmap_static = 0;
++	sf_dev->dev = &pdev->dev;
++	if (sf_fbinfo_init(&pdev->dev, sf_dev)) {
++		dev_err(dev, "fb info init FAIL\n");
++		return -ENODEV;
++	}
++
++#ifdef FB_BUFF_VIN
++	/*the address 0xf9000000 is required in CMA modem by VIN,
++	*the case used to check VIN image data path only
++	*is not normal application.
++	*/
++	sf_dev->fb.fix.smem_start = 0xf9000000;
++#endif
++
++	sf_dev->lcdc_irq = platform_get_irq_byname(pdev, "lcdc_irq");
++	if (sf_dev->lcdc_irq == -EPROBE_DEFER)
++		return sf_dev->lcdc_irq;
++	if (sf_dev->lcdc_irq < 0) {
++		dev_err(dev, "couldn't get lcdc irq\n");
++		return sf_dev->lcdc_irq;
++	}
++
++	sf_dev->vpp1_irq = platform_get_irq_byname(pdev, "vpp1_irq");
++	if (sf_dev->vpp1_irq == -EPROBE_DEFER)
++		return sf_dev->vpp1_irq;
++	if (sf_dev->vpp1_irq < 0) {
++		dev_err(dev, "couldn't get vpp1 irq\n");
++		return sf_dev->vpp1_irq;
++	}
++
++	lcdc_disable_intr(sf_dev);
++	sf_fb_pp_enable_intr(sf_dev, PP_INTR_DISABLE);
++
++	ret = devm_request_irq(&pdev->dev, sf_dev->lcdc_irq, lcdc_isr_handler, 0,
++			       "sf_lcdc", sf_dev);
++	if (ret) {
++		dev_err(&pdev->dev, "failure requesting irq %i: %d\n",
++			sf_dev->lcdc_irq, ret);
++		return ret;
++	}
++
++	ret = devm_request_irq(&pdev->dev, sf_dev->vpp1_irq, vpp1_isr_handler, 0,
++			       "sf_vpp1", sf_dev);
++	if (ret) {
++		dev_err(&pdev->dev, "failure requesting irq %i: %d\n",
++			sf_dev->vpp1_irq, ret);
++		return ret;
++	}
++
++	if (sf_fb_pp_init(sf_dev)) {
++		dev_err(dev, "pp init fail\n");
++		return -ENODEV;
++	}
++	pp_run(sf_dev, PP_ID_1, PP_RUN);
++	//pp_run(sf_dev, PP_ID_0, PP_RUN);
++
++	if (sf_fb_lcdc_clk_cfg(sf_dev)) {
++		dev_err(dev, "lcdc clock configure fail\n");
++		return -EINVAL;
++	}
++	sf_dev->pp_conn_lcdc = sf_fb_pp_get_2lcdc_id(sf_dev);
++	if (sf_fb_lcdc_init(sf_dev)) {
++		dev_err(dev, "lcdc init fail\n");
++		return -EINVAL;
++	}
++	lcdc_run(sf_dev, sf_dev->winNum, LCDC_RUN);
++
++	stf_dev = sf_dev;
++
++	platform_set_drvdata(pdev, sf_dev);
++	ret = register_framebuffer(&sf_dev->fb);
++	if (ret < 0) {
++		dev_err(&pdev->dev,"register framebuffer FAIL\n");
++		return ret;
++	}
++
++	sf_dev->stfbcdev.minor = MISC_DYNAMIC_MINOR;
++	sf_dev->stfbcdev.parent = &pdev->dev;
++	sf_dev->stfbcdev.name = "stfbcdev";
++	sf_dev->stfbcdev.fops = &stfb_fops;
++
++	ret = misc_register(&sf_dev->stfbcdev);
++	if (ret) {
++		dev_err(dev, "creare stfbcdev FAIL!\n");
++	}
++
++	lcdc_enable_intr(sf_dev);
++	sf_fb_pp_enable_intr(sf_dev, PP_INTR_ENABLE);
++
++	return 0;
++}
++
++static void starfive_fb_shutdown(struct platform_device *dev)
++{
++	return ;
++}
++
++static struct of_device_id starfive_fb_dt_match[] = {
++	{
++		.compatible = "starfive,vpp-lcdc",
++	},
++	{}
++};
++
++static struct platform_driver starfive_fb_driver = {
++	.probe		= starfive_fb_probe,
++	//.remove		= comipfb_remove,
++	.shutdown	= starfive_fb_shutdown,
++	.driver		= {
++		.name	= "starfive,vpp-lcdc",
++		.of_match_table = starfive_fb_dt_match,
++	},
++};
++
++static int __init starfive_fb_init(void)
++{
++	return platform_driver_register(&starfive_fb_driver);
++}
++
++static void __exit starfive_fb_cleanup(void)
++{
++	platform_driver_unregister(&starfive_fb_driver);
++}
++
++module_init(starfive_fb_init);
++module_exit(starfive_fb_cleanup);
++
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("loadable LCDC&VPP driver for StarFive");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/video/fbdev/starfive/starfive_fb.h b/drivers/video/fbdev/starfive/starfive_fb.h
+new file mode 100644
+index 000000000000..ed20616657ab
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_fb.h
+@@ -0,0 +1,98 @@
++/*
++ * StarFive Vout driver
++ *
++ * Copyright 2020 StarFive Inc.
++ *
++ * Licensed under the GPL-2.
++ */
++
++#ifndef __SF_FRAMEBUFFER_H__
++#define __SF_FRAMEBUFFER_H__
++
++#include <linux/fb.h>
++#include <linux/miscdevice.h>
++
++#define  H_SIZE	1920//352//1920//1280
++#define  V_SIZE	1080//288//1080//720
++#define  H_SIZE_DST	H_SIZE
++#define  V_SIZE_DST	V_SIZE
++
++#define  H_WID	40
++#define  H_BP		220
++#define  H_FP		110
++
++#define  V_WID	5
++#define  V_BP		20
++#define  V_FP		5
++
++#define VD_1080P	1080
++#define VD_720P	720
++#define VD_PAL	480
++
++#define VD_HEIGHT_1080P	VD_1080P
++#define VD_WIDTH_1080P	1920
++
++#define  RGB_OFFSET_ADDR	0//H_SIZE*(PIX_BPP+1)
++
++#define MIN_XRES		64
++#define MIN_YRES		64
++
++#define STARFIVEFB_RGB_IF	(0x00000002)
++#define STARFIVEFB_MIPI_IF	(0x00000003)
++#define STARFIVEFB_HDMI_IF	(0x00000004)
++#define STARFIVE_NAME		"starfive"
++#define BUFFER_NUMS		2
++
++//sys registers
++#define SYS_CONF_LCDC		0x00
++#define SYS_CONF_PP		0x04
++#define SYS_MAP_CONV		0x08
++
++//vout clk registers
++#define CLK_LCDC_OCLK_CTRL	0x14
++
++struct res_name {
++	char name[10];
++};
++
++struct sf_fb_data {
++	struct device		*dev;
++	char			*dis_dev_name;
++	struct miscdevice	stfbcdev;
++	int 			lcdc_irq;
++	int 			vpp0_irq;
++	int 			vpp1_irq;
++	int 			vpp2_irq;
++	void __iomem		*base_clk;
++	void __iomem		*base_rst;
++	void __iomem		*base_sys;
++	void __iomem		*base_vpp0;
++	void __iomem		*base_vpp1;
++	void __iomem		*base_vpp2;
++	void __iomem		*base_lcdc;
++	struct notifier_block	vin;
++	struct clk *mclk;
++
++	/*
++	 * Hardware control information
++	 */
++	struct fb_info		fb;
++	struct fb_videomode display_info;    /* reparent video mode source*/
++	unsigned int		refresh_en;
++	unsigned int		pixclock;	/*lcdc_mclk*/
++	unsigned int		buf_num;	/* frame buffer number. */
++	unsigned int		buf_size;	/* frame buffer size. */
++	int		cmap_inverse;
++	int		cmap_static;
++	/* keep these registers in case we need to re-write palette */
++	u32			palette_buffer[256];
++	u32			pseudo_pal[16];
++
++	struct sf_fb_display_dev *display_dev;
++	//struct pp_mode pp[3];
++	struct pp_mode *pp;
++	int winNum;
++	int pp_conn_lcdc;
++};
++
++#endif
+diff --git a/drivers/video/fbdev/starfive/starfive_lcdc.c b/drivers/video/fbdev/starfive/starfive_lcdc.c
+new file mode 100644
+index 000000000000..1626c3cf8fbb
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_lcdc.c
+@@ -0,0 +1,294 @@
++/* driver/video/starfive/starfive_lcdc.c
++**
++** This program is free software; you can redistribute it and/or modify
++** it under the terms of the GNU General Public License version 2 as
++** published by the Free Software Foundation.
++**
++** Copyright (C) 2020 StarFive, Inc.
++**
++** PURPOSE:	This files contains the driver of LCD controller.
++**
++** CHANGE HISTORY:
++**	Version		Date		Author		Description
++**	0.1.0		2020-11-03	starfive		created
++**
++*/
++
++#include <linux/module.h>
++
++#include "starfive_fb.h"
++#include "starfive_lcdc.h"
++#include "starfive_vpp.h"
++
++//#define SF_LCDC_DEBUG	1
++#ifdef SF_LCDC_DEBUG
++	#define LCDC_PRT(format, args...)  printk(KERN_DEBUG "[LCDC]: " format, ## args)
++	#define LCDC_INFO(format, args...) printk(KERN_INFO "[LCDC]: " format, ## args)
++	#define LCDC_ERR(format, args...)	printk(KERN_ERR "[LCDC]: " format, ## args)
++#else
++	#define LCDC_PRT(x...)  do{} while(0)
++	#define LCDC_INFO(x...)  do{} while(0)
++	#define LCDC_ERR(x...)  do{} while(0)
++#endif
++
++static u32 sf_fb_lcdcread32(struct sf_fb_data *sf_dev, u32 reg)
++{
++	return ioread32(sf_dev->base_lcdc + reg);
++}
++
++static void sf_fb_lcdcwrite32(struct sf_fb_data *sf_dev, u32 reg, u32 val)
++{
++	iowrite32(val, sf_dev->base_lcdc + reg);
++}
++
++void lcdc_mode_cfg(struct sf_fb_data *sf_dev, uint32_t workMode, int dotEdge, int syncEdge, int r2yBypass,
++					int srcSel, int intSrc, int intFreq)
++{
++  u32 lcdcEn = 0x1;
++  u32 cfg = lcdcEn | workMode << LCDC_WORK_MODE
++				| dotEdge << LCDC_DOTCLK_P
++				| syncEdge << LCDC_HSYNC_P
++				| syncEdge << LCDC_VSYNC_P
++				| 0x0 << LCDC_DITHER_EN
++				| r2yBypass << LCDC_R2Y_BPS
++				| srcSel << LCDC_TV_LCD_PATHSEL
++				| intSrc << LCDC_INT_SEL
++				| intFreq << LCDC_INT_FREQ;
++
++  sf_fb_lcdcwrite32(sf_dev, LCDC_GCTRL, cfg);
++  LCDC_PRT("LCDC WorkMode: 0x%x, LCDC Path: %d\n", workMode, srcSel);
++}
++
++//hbk, vbk=sa+bp, hpw?
++void lcdc_timing_cfg(struct sf_fb_data *sf_dev, int vunit)
++{
++  int hpw = sf_dev->display_info.hsync_len - 1;
++  int hbk = sf_dev->display_info.hsync_len + sf_dev->display_info.left_margin;
++  int hfp = sf_dev->display_info.right_margin;
++  int vpw = sf_dev->display_info.vsync_len - 1;
++  int vbk = sf_dev->display_info.vsync_len + sf_dev->display_info.upper_margin;
++  int vfp = sf_dev->display_info.lower_margin;
++
++  int htiming = hbk | hfp << LCDC_RGB_HFP;
++  int vtiming = vbk | vfp << LCDC_RGB_VFP;
++  int hvwid = hpw | vpw << LCDC_RGB_VPW | vunit << LCDC_RGB_UNIT;
++
++  sf_fb_lcdcwrite32(sf_dev, LCDC_RGB_H_TMG, htiming);
++  sf_fb_lcdcwrite32(sf_dev, LCDC_RGB_V_TMG, vtiming);
++  sf_fb_lcdcwrite32(sf_dev, LCDC_RGB_W_TMG, hvwid);
++  LCDC_PRT("LCDC HPW: %d, HBK: %d, HFP: %d\n", hpw, hbk, hfp);
++  LCDC_PRT("LCDC VPW: %d, VBK: %d, VFP: %d\n", vpw, vbk, vfp);
++  LCDC_PRT("LCDC V-Unit: %d, 0-HSYNC and 1-dotClk period\n", vunit);
++}
++
++//? background size
++//lcdc_desize_cfg(sf_dev, sf_dev->display_info.xres-1, sf_dev->display_info.yres-1);
++void lcdc_desize_cfg(struct sf_fb_data *sf_dev)
++{
++  int hsize = sf_dev->display_info.xres - 1;
++  int vsize = sf_dev->display_info.yres - 1;
++
++  int sizecfg = hsize | vsize << LCDC_BG_VSIZE;
++  sf_fb_lcdcwrite32(sf_dev, LCDC_BACKGROUD, sizecfg);
++  LCDC_PRT("LCDC Dest H-Size: %d, V-Size: %d\n", hsize, vsize);
++}
++
++void lcdc_rgb_dclk_cfg(struct sf_fb_data *sf_dev, int dot_clk_sel)
++{
++  int cfg = dot_clk_sel << 16;
++
++  sf_fb_lcdcwrite32(sf_dev, LCDC_RGB_DCLK, cfg);
++
++  LCDC_PRT("LCDC Dot_clock_output_sel: 0x%x\n", cfg);
++}
++
++
++// color table
++//win0, no lock transfer
++//win3, no srcSel and addrMode, 0 assigned to them
++//lcdc_win_cfgA(sf_dev, winNum, sf_dev->display_info.xres-1, sf_dev->display_info.yres-1, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0);
++void lcdc_win_cfgA(struct sf_fb_data *sf_dev, int winNum, int layEn, int clorTab,
++			int colorEn, int srcSel, int addrMode, int lock)
++{
++   int hsize = sf_dev->display_info.xres - 1;
++   int vsize = sf_dev->display_info.yres - 1;
++   int cfg = hsize | vsize << LCDC_WIN_VSIZE
++					| layEn << LCDC_WIN_EN
++					| clorTab << LCDC_CC_EN
++					| colorEn << LCDC_CK_EN
++					| srcSel << LCDC_WIN_ISSEL
++					| addrMode << LCDC_WIN_PM
++					| lock << LCDC_WIN_CLK;
++
++   sf_fb_lcdcwrite32(sf_dev, LCDC_WIN0_CFG_A + winNum * 0xC, cfg);
++   LCDC_PRT("LCDC Win%d H-Size: %d, V-Size: %d, layEn: %d, Src: %d, AddrMode: %d\n",
++		winNum, hsize, vsize, layEn, srcSel, addrMode);
++}
++
++void lcdc_win_cfgB(struct sf_fb_data *sf_dev, int winNum, int xpos, int ypos, int pixbpp, int argbOrd)
++{
++  int cfg = xpos | ypos << LCDC_WIN_VPOS
++					| pixbpp << LCDC_WIN_FMT
++					| argbOrd << LCDC_WIN_ARGB_ORDER;
++
++  sf_fb_lcdcwrite32(sf_dev, LCDC_WIN0_CFG_B + winNum * 0xC, cfg);
++  LCDC_PRT("LCDC Win%d Xpos: %d, Ypos: %d, pixBpp: 0x%x, ARGB Order: 0x%x\n",winNum, xpos, ypos, pixbpp, argbOrd);
++}
++
++//? Color key
++void lcdc_win_cfgC(struct sf_fb_data *sf_dev, int winNum, int colorKey)
++{
++  sf_fb_lcdcwrite32(sf_dev, LCDC_WIN0_CFG_C + winNum * 0xC, colorKey);
++  LCDC_PRT("LCDC Win%d Color Key: 0x%6x\n", winNum, colorKey);
++}
++
++//? hsize
++//lcdc_win_srcSize(sf_dev, winNum, sf_dev->display_info.xres-1);
++void lcdc_win_srcSize(struct sf_fb_data *sf_dev, int winNum)
++{
++	int addr, off, winsize, preCfg, cfg;
++	int hsize = sf_dev->display_info.xres - 1;
++	switch(winNum) {
++	case 0 : {addr = LCDC_WIN01_HSIZE; off = 0xfffff000; winsize = hsize; break;}
++	case 1 : {addr = LCDC_WIN01_HSIZE; off = 0xff000fff; winsize = hsize << LCDC_IMG_HSIZE; break;}
++	case 2 : {addr = LCDC_WIN23_HSIZE; off = 0xfffff000; winsize = hsize; break;}
++	case 3 : {addr = LCDC_WIN23_HSIZE; off = 0xff000fff; winsize = hsize << LCDC_IMG_HSIZE; break;}
++	case 4 : {addr = LCDC_WIN45_HSIZE; off = 0xfffff000; winsize = hsize; break;}
++	case 5 : {addr = LCDC_WIN45_HSIZE; off = 0xff000fff; winsize = hsize << LCDC_IMG_HSIZE; break;}
++	case 6 : {addr = LCDC_WIN67_HSIZE; off = 0xfffff000; winsize = hsize; break;}
++	case 7 : {addr = LCDC_WIN67_HSIZE; off = 0xff000fff; winsize = hsize << LCDC_IMG_HSIZE; break;}
++	default: {addr = LCDC_WIN01_HSIZE; off = 0xfffff000; winsize = hsize; break;}
++	}
++	preCfg = sf_fb_lcdcread32(sf_dev, addr)  & off;
++	cfg = winsize | preCfg;
++	sf_fb_lcdcwrite32(sf_dev, addr, cfg);
++	LCDC_PRT("LCDC Win%d Src Hsize: %d\n", winNum, hsize);
++}
++
++void lcdc_alphaVal_cfg(struct sf_fb_data *sf_dev, int val1, int val2, int val3, int val4, int sel)
++{
++	int val = val1 | val2 << LCDC_ALPHA2
++			| val3 << LCDC_ALPHA3
++			| val4 << LCDC_ALPHA4
++			| sel << LCDC_01_ALPHA_SEL;
++
++	int preVal = 0xfffb0000 & sf_fb_lcdcread32(sf_dev, LCDC_ALPHA_VALUE);
++	sf_fb_lcdcwrite32(sf_dev, LCDC_ALPHA_VALUE, preVal | val);
++	LCDC_PRT("LCDC Alpha 1: %x, 2: %x, 3: %x, 4: %x\n", val1, val2, val3, val4);
++}
++
++void lcdc_panel_cfg(struct sf_fb_data *sf_dev, int buswid, int depth, int txcycle, int pixpcycle,
++		int rgb565sel, int rgb888sel)
++{
++	int cfg = buswid | depth << LCDC_COLOR_DEP
++			  | txcycle << LCDC_TCYCLES
++			  | pixpcycle << LCDC_PIXELS
++			  | rgb565sel << LCDC_565RGB_SEL
++			  | rgb888sel << LCDC_888RGB_SEL;
++
++  sf_fb_lcdcwrite32(sf_dev, LCDC_PANELDATAFMT, cfg);
++  LCDC_PRT("LCDC bus bit: :%d, pixDep: 0x%x, txCyle: %d, %dpix/cycle, RGB565 2cycle_%d, RGB888 3cycle_%d\n",
++		buswid, depth, txcycle, pixpcycle, rgb565sel, rgb888sel);
++}
++
++void lcdc_enable_intr(struct sf_fb_data *sf_dev)
++{
++	int cfg;
++	cfg = ~(0x1 << LCDC_OUT_FRAME_END);
++
++	sf_fb_lcdcwrite32(sf_dev, LCDC_INT_MSK, cfg);
++}
++EXPORT_SYMBOL(lcdc_enable_intr);
++
++void lcdc_disable_intr(struct sf_fb_data *sf_dev)
++{
++	sf_fb_lcdcwrite32(sf_dev, LCDC_INT_MSK, 0xff);
++	sf_fb_lcdcwrite32(sf_dev, LCDC_INT_CLR, 0xff);
++}
++EXPORT_SYMBOL(lcdc_disable_intr);
++
++int lcdc_win_sel(struct sf_fb_data *sf_dev, enum lcdc_in_mode sel)
++{
++	int winNum = 2;
++
++	switch(sel)
++	{
++	case LCDC_IN_LCD_AXI:
++		break;
++	case LCDC_IN_VPP2:
++		winNum = LCDC_WIN_0;
++		break;
++	case LCDC_IN_VPP1:
++		winNum = LCDC_WIN_2;
++		break;
++	case LCDC_IN_VPP0:
++		winNum = LCDC_WIN_1;
++		mapconv_pp0_sel(sf_dev, 0x0);
++		break;
++	case LCDC_IN_MAPCONVERT:
++		winNum = LCDC_WIN_1;
++		mapconv_pp0_sel(sf_dev, 0x1);
++		break;
++	}
++
++	return winNum;
++}
++EXPORT_SYMBOL(lcdc_win_sel);
++
++irqreturn_t lcdc_isr_handler(int this_irq, void *dev_id)
++{
++	struct sf_fb_data *sf_dev = (struct sf_fb_data *)dev_id;
++	static int count = 0;
++	u32 intr_status = 0;
++
++	intr_status = sf_fb_lcdcread32(sf_dev, LCDC_INT_STATUS);
++	sf_fb_lcdcwrite32(sf_dev, LCDC_INT_CLR, 0xffffffff);
++
++	count ++;
++	//if(0 == count % 100)
++	//LCDC_PRT("++++\n");
++		//printk("+ count = %d, intr_status = 0x%x\n", count, intr_status);
++	return IRQ_HANDLED;
++}
++EXPORT_SYMBOL(lcdc_isr_handler);
++
++void lcdc_int_cfg(struct sf_fb_data *sf_dev, int mask)
++{
++	int cfg;
++
++	if(mask==0x1)
++		cfg = 0xffffffff;
++	else
++		cfg = ~(0x1 << LCDC_OUT_FRAME_END); //only frame end interrupt mask
++	sf_fb_lcdcwrite32(sf_dev, LCDC_INT_MSK, cfg);
++}
++EXPORT_SYMBOL(lcdc_int_cfg);
++
++void lcdc_config(struct sf_fb_data *sf_dev, int winNum)
++{
++	lcdc_mode_cfg(sf_dev, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x0);
++	lcdc_timing_cfg(sf_dev, 0);
++	lcdc_desize_cfg(sf_dev);
++	lcdc_rgb_dclk_cfg(sf_dev, 0x1);
++
++	lcdc_win_cfgA(sf_dev, winNum, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0);
++	lcdc_win_cfgB(sf_dev, winNum, 0x0, 0x0, 0x7, 0x0);
++	lcdc_win_cfgC(sf_dev, winNum, 0xffffff);
++
++	lcdc_win_srcSize(sf_dev, winNum);
++	lcdc_alphaVal_cfg(sf_dev, 0xf, 0xf, 0xf, 0xf, 0x0);
++	lcdc_panel_cfg(sf_dev, 0x3, 0x4, 0x0, 0x0, 0x0, 0x1);  //rgb888sel?
++}
++EXPORT_SYMBOL(lcdc_config);
++
++void lcdc_run(struct sf_fb_data *sf_dev, uint32_t winMode, uint32_t lcdTrig)
++{
++	uint32_t runcfg = winMode << LCDC_EN_CFG_MODE | lcdTrig;
++	sf_fb_lcdcwrite32(sf_dev, LCDC_SWITCH, runcfg);
++	LCDC_PRT("Start run LCDC\n");
++}
++EXPORT_SYMBOL(lcdc_run);
++
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("loadable LCDC driver for StarFive");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/video/fbdev/starfive/starfive_lcdc.h b/drivers/video/fbdev/starfive/starfive_lcdc.h
+new file mode 100644
+index 000000000000..2dcb44f6ec0d
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_lcdc.h
+@@ -0,0 +1,141 @@
++/*
++ * StarFive Vout driver
++ *
++ * Copyright 2020 StarFive Inc.
++ *
++ * Licensed under the GPL-2.
++ */
++
++#ifndef __SF_FB_LCDC_H__
++#define __SF_FB_LCDC_H__
++
++enum lcdc_in_mode{
++	LCDC_IN_LCD_AXI = 0,
++	LCDC_IN_VPP2,
++	LCDC_IN_VPP1,
++	LCDC_IN_VPP0,
++	LCDC_IN_MAPCONVERT,
++};
++
++enum lcdc_win_num{
++	LCDC_WIN_0 = 0,
++	LCDC_WIN_1,
++	LCDC_WIN_2,
++	LCDC_WIN_3,
++	LCDC_WIN_4,
++	LCDC_WIN_5,
++};
++
++#define LCDC_STOP	0
++#define LCDC_RUN	1
++
++//lcdc registers
++#define LCDC_SWITCH		0x0000
++#define LCDC_GCTRL		0x0004
++#define LCDC_INT_STATUS		0x0008
++#define LCDC_INT_MSK		0x000C
++#define LCDC_INT_CLR		0x0010
++#define LCDC_RGB_H_TMG		0x0014
++#define LCDC_RGB_V_TMG		0x0018
++#define LCDC_RGB_W_TMG		0x001C
++#define LCDC_RGB_DCLK		0x0020
++#define LCDC_M_CS_CTRL		0x0024
++#define LCDC_DeltaRGB_CFG		0x0028
++#define LCDC_BACKGROUD		0x002C
++#define LCDC_WIN0_CFG_A		0x0030
++#define LCDC_WIN0_CFG_B		0x0034
++#define LCDC_WIN0_CFG_C		0x0038
++#define LCDC_WIN1_CFG_A		0x003C
++#define LCDC_WIN1_CFG_B		0x0040
++#define LCDC_WIN1_CFG_C		0x0044
++#define LCDC_WIN2_CFG_A		0x0048
++#define LCDC_WIN2_CFG_B		0x004C
++#define LCDC_WIN2_CFG_C		0x0050
++#define LCDC_WIN3_CFG_A		0x0054
++#define LCDC_WIN3_CFG_B		0x0058
++#define LCDC_WIN3_CFG_C		0x005C
++#define LCDC_WIN01_HSIZE		0x0090
++#define LCDC_WIN23_HSIZE		0x0094
++#define LCDC_WIN45_HSIZE		0x0098
++#define LCDC_WIN67_HSIZE		0x009C
++#define LCDC_ALPHA_VALUE		0x00A0
++#define LCDC_PANELDATAFMT		0x00A4
++
++/* Definition controller bit for LCDC registers */
++//for LCDC_SWITCH
++#define LCDC_DTRANS_SWITCH		0
++#define LCDC_MPU_START		1
++#define LCDC_EN_CFG_MODE		2
++//for LCDC_GCTRL
++#define LCDC_EN		0
++#define LCDC_WORK_MODE		1
++#define LCDC_A0_P		4
++#define LCDC_ENABLE_P		5
++#define LCDC_DOTCLK_P		6
++#define LCDC_HSYNC_P		7
++#define LCDC_VSYNC_P		8
++#define LCDC_DITHER_EN		9
++#define LCDC_R2Y_BPS		10
++#define LCDC_MS_SEL		11
++#define LCDC_TV_LCD_PATHSEL		12
++#define LCDC_INTERLACE		13
++#define LCDC_CBCR_ORDER		14
++#define LCDC_INT_SEL		15
++#define LCDC_INT_FREQ		24
++//for LCDC_INT_MSK
++#define LCDC_OUT_FRAME_END		5
++//for RGB_H_TMG,RGB_V_TMG,RGB_W_TMG
++#define LCDC_RGB_HBK		0
++#define LCDC_RGB_HFP		16
++#define LCDC_RGB_VBK		0
++#define LCDC_RGB_VFP		16
++#define LCDC_RGB_HPW		0
++#define LCDC_RGB_VPW		8
++#define LCDC_RGB_UNIT		16
++//for BACKGROUD
++#define LCDC_BG_HSIZE		0
++#define LCDC_BG_VSIZE		12
++//for WINx_CFG_A/B/C
++#define LCDC_WIN_HSIZE		0
++#define LCDC_WIN_VSIZE		12
++#define LCDC_WIN_EN		24
++#define LCDC_CC_EN		25
++#define LCDC_CK_EN		26
++#define LCDC_WIN_ISSEL		27
++#define LCDC_WIN_PM		28
++#define LCDC_WIN_CLK		30
++#define LCDC_WIN_HPOS		0
++#define LCDC_WIN_VPOS		12
++#define LCDC_WIN_FMT		24
++#define LCDC_WIN_ARGB_ORDER		27
++#define LCDC_WIN_CC		0
++//for WINxx_HSIZE
++#define LCDC_IMG_HSIZE		12
++//for LCDC_ALPHA_VALUE
++#define LCDC_ALPHA1		0
++#define LCDC_ALPHA2		4
++#define LCDC_ALPHA3		8
++#define LCDC_ALPHA4		12
++#define LCDC_A_GLBL_ALPHA		16
++#define LCDC_B_GLBL_ALPHA		17
++#define LCDC_01_ALPHA_SEL		18
++//for LCDC_PANELDATAFMT
++#define LCDC_BUS_W		0
++#define LCDC_TCYCLES		2
++#define LCDC_COLOR_DEP		4
++#define LCDC_PIXELS		7
++#define LCDC_332RGB_SEL		8
++#define LCDC_444RGB_SEL		9
++#define LCDC_666RGB_SEL		12
++#define LCDC_565RGB_SEL		16
++#define LCDC_888RGB_SEL		18
++
++extern void lcdc_enable_intr(struct sf_fb_data *sf_dev);
++extern void lcdc_disable_intr(struct sf_fb_data *sf_dev);
++extern irqreturn_t lcdc_isr_handler(int this_irq, void *dev_id);
++extern void lcdc_int_cfg(struct sf_fb_data *sf_dev, int mask);
++extern void lcdc_config(struct sf_fb_data *sf_dev, int winNum);
++extern int lcdc_win_sel(struct sf_fb_data *sf_dev, enum lcdc_in_mode sel);
++extern void lcdc_run(struct sf_fb_data *sf_dev, uint32_t winMode, uint32_t lcdTrig);
++
++#endif
+diff --git a/drivers/video/fbdev/starfive/starfive_vpp.c b/drivers/video/fbdev/starfive/starfive_vpp.c
+new file mode 100644
+index 000000000000..2097782a9fdc
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_vpp.c
+@@ -0,0 +1,593 @@
++/* driver/video/starfive/starfive_vpp.c
++**
++** This program is free software; you can redistribute it and/or modify
++** it under the terms of the GNU General Public License version 2 as
++** published by the Free Software Foundation.
++**
++** Copyright (C) 2020 StarFive, Inc.
++**
++** PURPOSE:	This files contains the driver of VPP.
++**
++** CHANGE HISTORY:
++**	Version		Date		Author		Description
++**	0.1.0		2020-10-09	starfive		created
++**
++*/
++
++#include <linux/module.h>
++
++#include "starfive_fb.h"
++#include "starfive_vpp.h"
++
++//#define SF_PP_DEBUG	1
++#ifdef SF_PP_DEBUG
++	#define PP_PRT(format, args...)  printk(KERN_DEBUG "[pp]: " format, ## args)
++	#define PP_INFO(format, args...) printk(KERN_INFO "[pp]: " format, ## args)
++	#define PP_ERR(format, args...)	printk(KERN_ERR "[pp]: " format, ## args)
++#else
++	#define PP_PRT(x...)  do{} while(0)
++	#define PP_INFO(x...)  do{} while(0)
++	#define PP_ERR(x...)  do{} while(0)
++#endif
++
++static u32 sf_fb_sysread32(struct sf_fb_data *sf_dev, u32 reg)
++{
++	return ioread32(sf_dev->base_sys + reg);
++}
++
++static void sf_fb_syswrite32(struct sf_fb_data *sf_dev, u32 reg, u32 val)
++{
++	iowrite32(val, sf_dev->base_sys + reg);
++}
++
++static u32 sf_fb_vppread32(struct sf_fb_data *sf_dev, int ppNum, u32 reg)
++{
++	void __iomem	*base_vpp = 0;
++	switch(ppNum) {
++	    case 0 : {base_vpp = sf_dev->base_vpp0; break;}
++	    case 1 : {base_vpp = sf_dev->base_vpp1; break;}
++	    case 2 : {base_vpp = sf_dev->base_vpp2; break;}
++	    default: {PP_ERR("Err：invalid vpp Number!\n"); break;}
++	}
++	return ioread32(base_vpp + reg);
++}
++
++static void sf_fb_vppwrite32(struct sf_fb_data *sf_dev, int ppNum, u32 reg, u32 val)
++{
++	void __iomem	*base_vpp = 0;
++	switch(ppNum) {
++	case 0 : {base_vpp = sf_dev->base_vpp0; break;}
++	case 1 : {base_vpp = sf_dev->base_vpp1; break;}
++	case 2 : {base_vpp = sf_dev->base_vpp2; break;}
++	default: {PP_ERR("Err：invalid vpp Number!\n"); break;}
++	}
++	iowrite32(val, base_vpp + reg);
++}
++
++void mapconv_pp0_sel(struct sf_fb_data *sf_dev, int sel)
++{
++	u32 temp;
++	temp = sf_fb_sysread32(sf_dev, SYS_MAP_CONV);
++	temp &= ~(0x1);
++	temp |= (sel & 0x1);
++	sf_fb_syswrite32(sf_dev, SYS_MAP_CONV, temp);
++}
++EXPORT_SYMBOL(mapconv_pp0_sel);
++
++void pp_output_cfg(struct sf_fb_data *sf_dev, int ppNum, int outSel, int progInter, int desformat, int ptMode)
++{
++	int cfg = outSel | progInter << PP_INTERLACE
++			  | desformat << PP_DES_FORMAT
++			  | ptMode << PP_POINTER_MODE;
++
++	int preCfg = 0xffff8f0 & sf_fb_vppread32(sf_dev, ppNum, PP_CTRL1);
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_CTRL1, cfg | preCfg);
++	PP_PRT("PP%d outSel: %d, outFormat: 0x%x, Out Interlace: %d, ptMode: %d\n",
++		ppNum, outSel, desformat, progInter, ptMode);
++}
++
++void pp_srcfmt_cfg(struct sf_fb_data *sf_dev, int ppNum, int srcformat, int yuv420Inter, int yuv422_mode,
++		int yuv420_mode, int argbOrd)
++{
++	int cfg = srcformat << PP_SRC_FORMAT_N | yuv420Inter << PP_420_ITLC
++						| yuv422_mode << PP_SRC_422_YUV_POS
++						| yuv420_mode << PP_SRC_420_YUV_POS
++						| argbOrd << PP_SRC_ARGB_ORDER;
++
++	int preCfg = 0x83ffff0f & sf_fb_vppread32(sf_dev, ppNum, PP_CTRL1);
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_CTRL1, cfg | preCfg);
++	PP_PRT("PP%d Src Format: 0x%x, YUV420 Interlace: %d, YUV422: %d, YUV420: %d, ARGB Order: %d\n",
++		ppNum, srcformat,yuv420Inter,yuv422_mode,yuv420_mode, argbOrd);
++}
++
++void pp_r2yscal_bypass(struct sf_fb_data *sf_dev, int ppNum, int r2yByp, int scalByp, int y2rByp)
++{
++	int bypass = (r2yByp | scalByp<<1 | y2rByp<<2) << PP_R2Y_BPS;
++	int preCfg = 0xffff8fff & sf_fb_vppread32(sf_dev, ppNum, PP_CTRL1);
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_CTRL1, bypass | preCfg);
++	PP_PRT("PP%d Bypass R2Y: %d, Y2R: %d, MainSacle: %d\n", ppNum, r2yByp, y2rByp, scalByp);
++}
++
++void pp_argb_alpha(struct sf_fb_data *sf_dev, int ppNum, int alpha)
++{
++	int preCfg = 0xff00ffff & sf_fb_vppread32(sf_dev, ppNum, PP_CTRL1);
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_CTRL1, alpha << PP_ARGB_ALPHA | preCfg);
++	PP_PRT("PP%d Alpha: 0x%4x\n", ppNum, alpha);
++}
++
++//rgbNum: 1-3
++void pp_r2y_coeff(struct sf_fb_data *sf_dev, int ppNum, int coefNum, int rcoef, int gcoef, int bcoef, int off)
++{
++	int rgcoeff = rcoef | gcoef << PP_COEF_G1;
++	int bcoefoff = bcoef| off << PP_OFFSET_1;
++	u32 addr1 = (coefNum - 1) * 0x8 + PP_R2Y_COEF1;
++	u32 addr2 = (coefNum - 1) * 0x8 + PP_R2Y_COEF2;
++	sf_fb_vppwrite32(sf_dev, ppNum, addr1, rgcoeff);
++	sf_fb_vppwrite32(sf_dev, ppNum, addr2, bcoefoff);
++	PP_PRT("PP%d coefNum: %d, rCoef: 0x%4x, gCoef: 0x%4x, bCoef: 0x%4x, off: 0x%4x\n",
++		ppNum, coefNum, rcoef, gcoef, bcoef, off);
++}
++
++void pp_output_fmt_cfg(struct sf_fb_data *sf_dev, int ppNum, int yuv420Inter, int yuv422_mode)
++{
++	int preCfg = 0xfffffffe & sf_fb_vppread32(sf_dev, ppNum, PP_CTRL2);
++	preCfg = preCfg | yuv420Inter << PP_DES_420_ORDER
++			| yuv422_mode << PP_DES_422_ORDER;
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_CTRL2, preCfg);
++	PP_PRT("PP%d Lock Transfer: %d\n", ppNum, yuv422_mode);
++}
++
++void pp_lockTrans_cfg(struct sf_fb_data *sf_dev, int ppNum, int lockTrans)
++{
++	int preCfg = 0xfffffffe & sf_fb_vppread32(sf_dev, ppNum, PP_CTRL2);
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_CTRL2, lockTrans | preCfg);
++	PP_PRT("PP%d Lock Transfer: %d\n", ppNum, lockTrans);
++}
++
++void pp_int_interval_cfg(struct sf_fb_data *sf_dev, int ppNum, int interval)
++{
++	int preCfg = 0xffff00ff & sf_fb_vppread32(sf_dev, ppNum, PP_CTRL2);
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_CTRL2, interval << PP_INT_INTERVAL | preCfg);
++	PP_PRT("PP%d Frame Interrupt interval: %d Frames\n", ppNum, interval);
++}
++
++void pp_srcSize_cfg(struct sf_fb_data *sf_dev, int ppNum, int hsize, int vsize)
++{
++  int size = hsize | vsize << PP_SRC_VSIZE;
++  sf_fb_vppwrite32(sf_dev, ppNum, PP_SRC_SIZE, size);
++  PP_PRT("PP%d HSize: %d, VSize: %d\n", ppNum, hsize, vsize);
++}
++
++//0-no drop, 1-1/2, 2-1/4, down to 1/32
++void pp_drop_cfg(struct sf_fb_data *sf_dev, int ppNum, int hdrop, int vdrop)
++{
++	int drop = hdrop | vdrop << PP_DROP_VRATION;
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_DROP_CTRL, drop);
++	PP_PRT("PP%d HDrop: %d, VDrop: %d\n", ppNum, hdrop, vdrop);
++}
++
++
++void pp_desSize_cfg(struct sf_fb_data *sf_dev, int ppNum, int hsize, int vsize)
++{
++  int size = hsize | vsize << PP_DES_VSIZE;
++  sf_fb_vppwrite32(sf_dev, ppNum, PP_DES_SIZE, size);
++  PP_PRT("PP%d HSize: %d, VSize: %d\n", ppNum, hsize, vsize);
++}
++
++void pp_desAddr_cfg(struct sf_fb_data *sf_dev, int ppNum, int yaddr, int uaddr, int vaddr)
++{
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_DES_Y_SA, yaddr);
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_DES_U_SA, uaddr);
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_DES_V_SA, vaddr);
++   PP_PRT("PP%d des-Addr Y: 0x%8x, U: 0x%8x, V: 0x%8x\n", ppNum, yaddr, uaddr, vaddr);
++}
++
++void pp_desOffset_cfg(struct sf_fb_data *sf_dev, int ppNum, int yoff, int uoff, int voff)
++{
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_DES_Y_OFS, yoff);
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_DES_U_OFS, uoff);
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_DES_V_OFS, voff);
++   PP_PRT("PP%d des-Offset Y: 0x%4x, U: 0x%4x, V: 0x%4x\n", ppNum, yoff, uoff, voff);
++}
++
++
++void pp_intcfg(struct sf_fb_data *sf_dev, int ppNum, int intMask)
++{
++   int intcfg = ~(0x1<<0);
++
++   if(intMask)
++       intcfg = 0xf;
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_INT_MASK, intcfg);
++}
++EXPORT_SYMBOL(pp_intcfg);
++
++//next source frame Y/RGB start address, ?
++void pp_srcAddr_next(struct sf_fb_data *sf_dev, int ppNum, int ysa, int usa, int vsa)
++{
++  sf_fb_vppwrite32(sf_dev, ppNum, PP_SRC_Y_SA_NXT, ysa);
++  sf_fb_vppwrite32(sf_dev, ppNum, PP_SRC_U_SA_NXT, usa);
++  sf_fb_vppwrite32(sf_dev, ppNum, PP_SRC_V_SA_NXT, vsa);
++  PP_PRT("PP%d next Y startAddr: 0x%8x, U startAddr: 0x%8x, V startAddr: 0x%8x\n", ppNum, ysa, usa, vsa);
++}
++EXPORT_SYMBOL(pp_srcAddr_next);
++
++void pp_srcOffset_cfg(struct sf_fb_data *sf_dev, int ppNum, int yoff, int uoff, int voff)
++{
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_SRC_Y_OFS, yoff);
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_SRC_U_OFS, uoff);
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_SRC_V_OFS, voff);
++   PP_PRT("PP%d src-Offset Y: 0x%4x, U: 0x%4x, V: 0x%4x\n", ppNum, yoff, uoff, voff);
++}
++EXPORT_SYMBOL(pp_srcOffset_cfg);
++
++void pp_nxtAddr_load(struct sf_fb_data *sf_dev, int ppNum, int nxtPar, int nxtPos)
++{
++  sf_fb_vppwrite32(sf_dev, ppNum, PP_LOAD_NXT_PAR, nxtPar | nxtPos);
++  PP_PRT("PP%d next addrPointer: %d, %d set Regs\n", ppNum, nxtPar, nxtPos);
++}
++EXPORT_SYMBOL(pp_nxtAddr_load);
++
++void pp_run(struct sf_fb_data *sf_dev, int ppNum, int start)
++{
++   sf_fb_vppwrite32(sf_dev, ppNum, PP_SWITCH, start);
++   //if(start)
++   //  PP_PRT("Now start the PP%d\n\n", ppNum);
++}
++EXPORT_SYMBOL(pp_run);
++
++void pp1_enable_intr(struct sf_fb_data *sf_dev)
++{
++	sf_fb_vppwrite32(sf_dev, 1, PP_INT_MASK, 0x0);
++}
++EXPORT_SYMBOL(pp1_enable_intr);
++
++void pp_enable_intr(struct sf_fb_data *sf_dev, int ppNum)
++{
++	u32 cfg = 0xfffe;
++
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_INT_MASK, cfg);
++}
++EXPORT_SYMBOL(pp_enable_intr);
++
++void pp_disable_intr(struct sf_fb_data *sf_dev, int ppNum)
++{
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_INT_MASK, 0xf);
++	sf_fb_vppwrite32(sf_dev, ppNum, PP_INT_CLR, 0xf);
++}
++EXPORT_SYMBOL(pp_disable_intr);
++
++static void pp_srcfmt_set(struct sf_fb_data *sf_dev, int ppNum, struct pp_video_mode *src)
++{
++    switch(src->format)
++    {
++        case COLOR_YUV422_YVYU:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_YUV422, 0x0, COLOR_YUV422_YVYU, 0x0, 0x0);
++            break;
++        case COLOR_YUV422_VYUY:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_YUV422, 0x0, COLOR_YUV422_VYUY, 0x0, 0x0);
++            break;
++        case COLOR_YUV422_YUYV:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_YUV422, 0x0, COLOR_YUV422_YUYV, 0x0, 0x0);
++            break;
++        case COLOR_YUV422_UYVY:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_YUV422, 0x0, COLOR_YUV422_UYVY, 0x0, 0x0);
++            break;
++        case COLOR_YUV420P:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_YUV420P, 0x0, 0, 0x0, 0x0);
++            break;
++        case COLOR_YUV420_NV21:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_YUV420I, 0x1, 0, COLOR_YUV420_NV21-COLOR_YUV420_NV21, 0x0);
++            break;
++        case COLOR_YUV420_NV12:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_YUV420I, 0x1, 0, COLOR_YUV420_NV12-COLOR_YUV420_NV21, 0x0);
++            break;
++        case COLOR_RGB888_ARGB:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_GRB888, 0x0, 0x0, 0x0, COLOR_RGB888_ARGB-COLOR_RGB888_ARGB);//0x0);
++            break;
++        case COLOR_RGB888_ABGR:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_GRB888, 0x0, 0x0, 0x0, COLOR_RGB888_ARGB-COLOR_RGB888_ABGR);//0x1);
++            break;
++        case COLOR_RGB888_RGBA:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_GRB888, 0x0, 0x0, 0x0, COLOR_RGB888_ARGB-COLOR_RGB888_RGBA);//0x2);
++            break;
++        case COLOR_RGB888_BGRA:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_GRB888, 0x0, 0x0, 0x0, COLOR_RGB888_ARGB-COLOR_RGB888_BGRA);//0x3);
++            break;
++        case COLOR_RGB565:
++            pp_srcfmt_cfg(sf_dev, ppNum, PP_SRC_RGB565, 0x0, 0x0, 0x0, 0x0);
++            break;
++    }
++}
++
++static void pp_dstfmt_set(struct sf_fb_data *sf_dev, int ppNum, struct pp_video_mode *dst)
++{
++    unsigned int outsel = 1;
++    if(dst->addr)
++    {
++        outsel = 0;
++    }
++
++    switch(dst->format) {
++        case COLOR_YUV422_YVYU:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_YUV422, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, COLOR_YUV422_UYVY - COLOR_YUV422_YVYU);
++            break;
++        case COLOR_YUV422_VYUY:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_YUV422, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, COLOR_YUV422_UYVY - COLOR_YUV422_VYUY);
++            break;
++        case COLOR_YUV422_YUYV:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_YUV422, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, COLOR_YUV422_UYVY - COLOR_YUV422_YUYV);
++            break;
++        case COLOR_YUV422_UYVY:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_YUV422, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, COLOR_YUV422_UYVY - COLOR_YUV422_YVYU);
++            break;
++        case COLOR_YUV420P:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_YUV420P, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, 0);
++            break;
++        case COLOR_YUV420_NV21:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_YUV420I, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, COLOR_YUV420_NV21 - COLOR_YUV420_NV21, 0);
++            break;
++        case COLOR_YUV420_NV12:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_YUV420I, 0x0);///0x2, 0x0);
++            //pp_output_fmt_cfg(ppNum, COLOR_YUV420_NV12 - COLOR_YUV420_NV21, 0);
++            break;
++        case COLOR_RGB888_ARGB:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_ARGB888, 0x0);
++            //pp_output_fmt_cfg(ppNum, 0, 0);
++            break;
++        case COLOR_RGB888_ABGR:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_ABGR888, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, 0);
++            break;
++        case COLOR_RGB888_RGBA:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_RGBA888, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, 0);
++            break;
++        case COLOR_RGB888_BGRA:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_BGRA888, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, 0);
++            break;
++        case COLOR_RGB565:
++            pp_output_cfg(sf_dev, ppNum, outsel, 0x0, PP_DST_RGB565, 0x0);
++            pp_output_fmt_cfg(sf_dev, ppNum, 0, 0);
++            break;
++    }
++}
++
++
++void pp_format_set(struct sf_fb_data *sf_dev, int ppNum, struct pp_video_mode *src, struct pp_video_mode *dst)
++{
++
++    /* 1:bypass, 0:not bypass */
++    unsigned int scale_byp = 1;
++
++    pp_srcfmt_set(sf_dev, ppNum, src);
++    pp_dstfmt_set(sf_dev, ppNum, dst);
++
++    if((src->height != dst->height) || (src->width != dst->width)) {
++        scale_byp = 0;
++    }
++
++    if((src->format >= COLOR_RGB888_ARGB) && (dst->format <= COLOR_YUV420_NV12)) {
++        /* rgb -> yuv-420 */
++        pp_r2yscal_bypass(sf_dev, ppNum, NOT_BYPASS, scale_byp, BYPASS);
++        pp_r2y_coeff(sf_dev, ppNum, 1, R2Y_COEF_R1, R2Y_COEF_G1, R2Y_COEF_B1, R2Y_OFFSET1);
++        pp_r2y_coeff(sf_dev, ppNum, 2, R2Y_COEF_R2, R2Y_COEF_G2, R2Y_COEF_B2, R2Y_OFFSET2);
++        pp_r2y_coeff(sf_dev, ppNum, 3, R2Y_COEF_R3, R2Y_COEF_G3, R2Y_COEF_B3, R2Y_OFFSET3);
++    } else if ((src->format <= COLOR_YUV420_NV12) && (dst->format >= COLOR_RGB888_ARGB)) {
++        /* yuv-420 -> rgb */
++        pp_r2yscal_bypass(sf_dev, ppNum, BYPASS, scale_byp, NOT_BYPASS);
++    } else if ((src->format <= COLOR_YUV422_YVYU) && (dst->format <= COLOR_YUV420_NV12)) {
++        /* yuv422 -> yuv420 */
++        pp_r2yscal_bypass(sf_dev, ppNum, BYPASS, scale_byp, BYPASS);
++    } else {
++        /* rgb565->argb888 */
++        pp_r2yscal_bypass(sf_dev, ppNum, BYPASS, scale_byp, BYPASS);
++    } //else if((src->format >= COLOR_RGB888_ARGB) && (dst->format >= COLOR_RGB888_ARGB))
++    {
++        /* rgb -> rgb */
++       // pp_r2yscal_bypass(ppNum, BYPASS, scale_byp, BYPASS);
++    }
++    pp_argb_alpha(sf_dev, ppNum, 0xff);
++
++    if(dst->addr) {
++        pp_lockTrans_cfg(sf_dev, ppNum, SYS_BUS_OUTPUT);
++    } else {
++        pp_lockTrans_cfg(sf_dev, ppNum, FIFO_OUTPUT);
++    }
++
++    pp_int_interval_cfg(sf_dev, ppNum, 0x1);
++
++}
++
++void pp_size_set(struct sf_fb_data *sf_dev, int ppNum, struct pp_video_mode *src, struct pp_video_mode *dst)
++{
++    uint32_t srcAddr, dstaddr;
++    unsigned int size, y_rgb_ofst, uofst;
++	unsigned int v_uvofst = 0, next_y_rgb_addr = 0, next_u_addr = 0, next_v_addr = 0;
++    unsigned int i = 0;
++
++    pp_srcSize_cfg(sf_dev, ppNum, src->width - 1, src->height - 1);
++    pp_drop_cfg(sf_dev, ppNum, 0x0, 0x0);///0:no drop
++    pp_desSize_cfg(sf_dev, ppNum, dst->width - 1, dst->height - 1);
++
++    srcAddr = src->addr + (i<<30);///PP_SRC_BASE_ADDR + (i<<30);
++    size = src->width * src->height;
++
++    if(src->format >= COLOR_RGB888_ARGB) {
++        next_y_rgb_addr = srcAddr;
++        next_u_addr = 0;
++        next_v_addr = 0;
++
++        y_rgb_ofst = 0;
++        uofst = 0;
++        v_uvofst = 0;
++
++        //pp_srcAddr_next(ppNum, srcAddr, 0, 0);
++        //pp_srcOffset_cfg(ppNum, 0x0, 0x0, 0x0);
++
++    } else {
++        //if((src->format == COLOR_YUV420_NV21) || (src->format == COLOR_YUV420_NV12)){
++        if(src->format == COLOR_YUV420_NV21) {    //ok
++            next_y_rgb_addr = srcAddr;
++            next_u_addr = srcAddr+size+1;
++            next_v_addr = srcAddr+size;//0;
++
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = size;
++            //pp_srcAddr_next(ppNum, next_y_rgb_addr, next_u_addr, next_v_addr);
++            //pp_srcOffset_cfg(ppNum, y_rgb_ofst, uofst, v_uvofst);
++        }
++
++        if(src->format == COLOR_YUV420_NV12) {    //ok
++            next_y_rgb_addr = srcAddr;
++            next_u_addr = srcAddr+size;
++            next_v_addr = srcAddr+size+1;
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = size;
++        } else if (src->format == COLOR_YUV420P) {
++            next_y_rgb_addr = srcAddr;
++            next_u_addr = srcAddr+size;
++            next_v_addr = srcAddr+size*5/4;
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = 0;
++        } else if (src->format == COLOR_YUV422_YVYU) {   //ok
++            next_y_rgb_addr = srcAddr;
++            next_u_addr = srcAddr+1;
++            next_v_addr = srcAddr+3;
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = 0;
++        } else if (src->format == COLOR_YUV422_VYUY) {   //ok
++            next_y_rgb_addr = srcAddr+1;
++            next_u_addr = srcAddr+2;
++            next_v_addr = srcAddr;
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = 0;
++        } else if(src->format == COLOR_YUV422_YUYV) {   //ok
++            next_y_rgb_addr = srcAddr;
++            next_u_addr = srcAddr+1;
++            next_v_addr = srcAddr+2;
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = 0;
++        } else if(src->format == COLOR_YUV422_UYVY) {  //ok
++            next_y_rgb_addr = srcAddr+1;
++            next_u_addr = srcAddr;
++            next_v_addr = srcAddr+2;
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = 0;
++        }
++    }
++    pp_srcAddr_next(sf_dev, ppNum, next_y_rgb_addr, next_u_addr, next_v_addr);
++    pp_srcOffset_cfg(sf_dev, ppNum, y_rgb_ofst, uofst, v_uvofst);
++    /* source addr not change */
++    pp_nxtAddr_load(sf_dev, ppNum, 0x1, (i & 0x1));
++
++    if(dst->addr) {
++        dstaddr = dst->addr;
++        size = dst->height*dst->width;
++        if(dst->format >= COLOR_RGB888_ARGB) {
++            next_y_rgb_addr = dstaddr;
++            next_u_addr = 0;
++            next_v_addr = 0;
++            y_rgb_ofst = 0;
++            uofst = 0;
++            v_uvofst = 0;
++        } else {
++            if(dst->format == COLOR_YUV420_NV21) {
++				/* yyyyvuvuvu */
++                next_y_rgb_addr = dstaddr;
++                next_u_addr = dstaddr+size;
++                next_v_addr = 0;//dstaddr+size;
++                y_rgb_ofst = 0;
++                uofst = 0;
++                v_uvofst = 0;
++            } else if (dst->format == COLOR_YUV420_NV12){
++				/* yyyyuvuvuv */
++                next_y_rgb_addr = dstaddr;
++                next_u_addr = dstaddr+size;
++                next_v_addr = dstaddr+size+1;
++                y_rgb_ofst = 0;
++                uofst = size;
++                v_uvofst = 0;
++            } else if(dst->format == COLOR_YUV420P) {
++                next_y_rgb_addr = dstaddr;
++                next_u_addr = dstaddr+size;
++                next_v_addr = dstaddr+size*5/4;
++                y_rgb_ofst = 0;
++                uofst = 0;
++                v_uvofst = 0;
++            } else if (dst->format == COLOR_YUV422_YVYU) {
++                next_y_rgb_addr = dstaddr;
++                next_u_addr = dstaddr+1;
++                next_v_addr = dstaddr+3;
++                y_rgb_ofst = 0;
++                uofst = 0;
++                v_uvofst = 0;
++            } else if(dst->format == COLOR_YUV422_VYUY) {
++                next_y_rgb_addr = dstaddr+1;
++                next_u_addr = dstaddr+2;
++                next_v_addr = dstaddr;
++                y_rgb_ofst = 0;
++                uofst = 0;
++                v_uvofst = 0;
++            } else if(dst->format == COLOR_YUV422_YUYV) {
++                next_y_rgb_addr = dstaddr;
++                next_u_addr = dstaddr+1;
++                next_v_addr = dstaddr+2;
++                y_rgb_ofst = 0;
++                uofst = 0;
++                v_uvofst = 0;
++            } else if(dst->format == COLOR_YUV422_UYVY) {
++                next_y_rgb_addr = dstaddr+1;
++                next_u_addr = dstaddr;
++                next_v_addr = dstaddr+2;
++                y_rgb_ofst = 0;
++                uofst = 0;
++                v_uvofst = 0;
++            }
++        }
++        pp_desAddr_cfg(sf_dev, ppNum, next_y_rgb_addr, next_u_addr, next_v_addr);
++        pp_desOffset_cfg(sf_dev, ppNum, y_rgb_ofst, uofst, v_uvofst);
++    }
++
++}
++
++
++void pp_config(struct sf_fb_data *sf_dev, int ppNum, struct pp_video_mode *src, struct pp_video_mode *dst)
++{
++	//pp_disable_intr(sf_dev, ppNum);
++	pp_format_set(sf_dev, ppNum, src, dst);
++	pp_size_set(sf_dev, ppNum, src, dst);
++}
++EXPORT_SYMBOL(pp_config);
++
++irqreturn_t vpp1_isr_handler(int this_irq, void *dev_id)
++{
++	struct sf_fb_data *sf_dev = (struct sf_fb_data *)dev_id;
++	static int count = 0;
++	sf_fb_vppwrite32(sf_dev, 1, PP_INT_CLR, 0xf);
++
++	count ++;
++	if(0 == count % 60)
++		PP_PRT("=");
++		//printk("=");
++
++	return IRQ_HANDLED;
++}
++EXPORT_SYMBOL(vpp1_isr_handler);
++
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("loadable VPP driver for StarFive");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/video/fbdev/starfive/starfive_vpp.h b/drivers/video/fbdev/starfive/starfive_vpp.h
+new file mode 100644
+index 000000000000..a8c8802f41d6
+--- /dev/null
++++ b/drivers/video/fbdev/starfive/starfive_vpp.h
+@@ -0,0 +1,194 @@
++/*
++ * StarFive Vout driver
++ *
++ * Copyright 2020 StarFive Inc.
++ *
++ * Licensed under the GPL-2.
++ */
++
++#ifndef __SF_FB_VPP_H__
++#define __SF_FB_VPP_H__
++
++#define PP_ID_0	0
++#define PP_ID_1	1
++#define PP_ID_2	2
++
++#define PP_NUM	3
++
++#define PP_STOP	0
++#define PP_RUN	1
++
++#define PP_INTR_ENABLE	1
++#define PP_INTR_DISABLE	0
++//PP coefficients
++///*
++#define R2Y_COEF_R1       77
++#define R2Y_COEF_G1       150
++#define R2Y_COEF_B1       29
++#define R2Y_OFFSET1       0
++
++#define R2Y_COEF_R2       (0x400|43)
++#define R2Y_COEF_G2       (0x400|85)
++#define R2Y_COEF_B2       128
++#define R2Y_OFFSET2       128
++
++#define R2Y_COEF_R3       128
++#define R2Y_COEF_G3       (0x400|107)
++#define R2Y_COEF_B3       (0x400|21)
++#define R2Y_OFFSET3       128
++//*/
++enum PP_LCD_PATH
++{
++    SYS_BUS_OUTPUT = 0,
++    FIFO_OUTPUT = 1,
++};
++
++enum PP_COLOR_CONVERT_SCALE
++{
++    NOT_BYPASS = 0,
++    BYPASS,
++};
++
++enum PP_SRC_FORMAT
++{
++    PP_SRC_YUV420P = 0,
++    PP_SRC_YUV422,
++    PP_SRC_YUV420I,
++    PP_RESERVED,
++    PP_SRC_GRB888,
++    PP_SRC_RGB565,
++};
++
++enum PP_DST_FORMAT
++{
++    PP_DST_YUV420P = 0,
++    PP_DST_YUV422,
++    PP_DST_YUV420I,
++    PP_DST_RGBA888,
++    PP_DST_ARGB888,
++    PP_DST_RGB565,
++    PP_DST_ABGR888,
++    PP_DST_BGRA888,
++};
++
++enum COLOR_FORMAT{
++    COLOR_YUV422_UYVY = 0,  //00={Y1,V0,Y0,U0}
++    COLOR_YUV422_VYUY = 1,  //01={Y1,U0,Y0,V0}
++    COLOR_YUV422_YUYV = 2,  //10={V0,Y1,U0,Y0}
++    COLOR_YUV422_YVYU = 3,  //11={U0,Y1,V0,Y0}
++
++    COLOR_YUV420P,
++    COLOR_YUV420_NV21,
++    COLOR_YUV420_NV12,
++
++    COLOR_RGB888_ARGB,
++    COLOR_RGB888_ABGR,
++    COLOR_RGB888_RGBA,
++    COLOR_RGB888_BGRA,
++    COLOR_RGB565,
++};
++
++
++struct pp_video_mode {
++    enum COLOR_FORMAT format;
++    unsigned int height;
++    unsigned int width;
++	unsigned int addr;
++};
++
++struct pp_mode {
++	char pp_id;
++	bool bus_out;	/*out to ddr*/
++	bool fifo_out;	/*out to lcdc*/
++	bool inited;
++	struct pp_video_mode src;
++	struct pp_video_mode dst;
++};
++
++//vpp registers
++#define PP_SWITCH		0x0000
++#define PP_CTRL1		0x0004
++#define PP_CTRL2		0x0008
++#define PP_SRC_SIZE		0x000C
++#define PP_DROP_CTRL		0x0010
++#define PP_DES_SIZE		0x0014
++#define PP_Scale_Hratio		0x0018
++#define PP_Scale_Vratio		0x001C
++#define PP_Scale_limit		0x0020
++#define PP_SRC_Y_SA_NXT		0x0024
++#define PP_SRC_U_SA_NXT		0x0028
++#define PP_SRC_V_SA_NXT		0x002c
++#define PP_LOAD_NXT_PAR		0x0030
++#define PP_SRC_Y_SA0		0x0034
++#define PP_SRC_U_SA0		0x0038
++#define PP_SRC_V_SA0		0x003c
++#define PP_SRC_Y_OFS		0x0040
++#define PP_SRC_U_OFS		0x0044
++#define PP_SRC_V_OFS		0x0048
++#define PP_SRC_Y_SA1		0x004C
++#define PP_SRC_U_SA1		0x0050
++#define PP_SRC_V_SA1		0x0054
++#define PP_DES_Y_SA		0x0058
++#define PP_DES_U_SA		0x005C
++#define PP_DES_V_SA		0x0060
++#define PP_DES_Y_OFS		0x0064
++#define PP_DES_U_OFS		0x0068
++#define PP_DES_V_OFS		0x006C
++#define PP_INT_MASK		0x0074
++#define PP_INT_CLR		0x0078
++#define PP_R2Y_COEF1		0x007C
++#define PP_R2Y_COEF2		0x0080
++
++/* Definition controller bit for LCDC registers */
++//for PP_SWITCH
++#define PP_TRIG		0
++//for PP_CTRL1
++#define PP_LCDPATH_EN		0
++#define PP_INTERLACE		1
++#define PP_POINTER_MODE		2
++#define PP_SRC_FORMAT_N		4
++#define PP_420_ITLC		7
++#define PP_DES_FORMAT		8
++#define PP_R2Y_BPS		12
++#define PP_MSCALE_BPS		13
++#define PP_Y2R_BPS		14
++#define PP_ARGB_ALPHA		16
++#define PP_UV_IN_ADD_128		24
++#define PP_UV_OUT_ADD_128		25
++#define PP_SRC_422_YUV_POS		26
++#define PP_SRC_420_YUV_POS		28
++#define PP_SRC_ARGB_ORDER		29
++//for PP_CTRL2
++#define PP_LOCK_EN		0
++#define PP_INT_INTERVAL		8
++#define PP_DES_422_ORDER		16
++#define PP_DES_420_ORDER		18
++//for PP_SRC_SIZE
++#define PP_SRC_HSIZE		0
++#define PP_SRC_VSIZE		16
++//for PP_DROP_CTRL
++#define PP_DROP_HRATION		0
++#define PP_DROP_VRATION		4
++//for PP_DES_SIZE
++#define PP_DES_HSIZE		0
++#define PP_DES_VSIZE		16
++//for PP_R2Y_COEF1
++#define PP_COEF_R1		0
++#define PP_COEF_G1		16
++//for PP_R2Y_COEF2
++#define PP_COEF_B1		0
++#define PP_OFFSET_1		16
++
++extern void mapconv_pp0_sel(struct sf_fb_data *sf_dev, int sel);
++extern void pp_srcAddr_next(struct sf_fb_data *sf_dev, int ppNum, int ysa, int usa, int vsa);
++extern void pp_srcOffset_cfg(struct sf_fb_data *sf_dev, int ppNum, int yoff, int uoff, int voff);
++extern void pp_nxtAddr_load(struct sf_fb_data *sf_dev, int ppNum, int nxtPar, int nxtPos);
++extern void pp_intcfg(struct sf_fb_data *sf_dev, int ppNum, int intMask);
++extern irqreturn_t vpp1_isr_handler(int this_irq, void *dev_id);
++extern void pp1_enable_intr(struct sf_fb_data *sf_dev);
++extern void pp_enable_intr(struct sf_fb_data *sf_dev, int ppNum);
++extern void pp_disable_intr(struct sf_fb_data *sf_dev, int ppNum);
++extern void pp_config(struct sf_fb_data *sf_dev, int ppNum, struct pp_video_mode *src, struct pp_video_mode *dst);
++extern void pp_run(struct sf_fb_data *sf_dev, int ppNum, int start);
++
++#endif
+diff --git a/include/video/stf-vin.h b/include/video/stf-vin.h
+new file mode 100755
+index 000000000000..292e0dd9e995
+--- /dev/null
++++ b/include/video/stf-vin.h
+@@ -0,0 +1,187 @@
++/* include/video/stf-vin.h
++ *
++ * Copyright 2020 starfive tech.
++ *	Eric Tang <eric.tang@starfivetech.com>
++ *
++ * Generic vin notifier interface
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++*/
++#ifndef _VIDEO_VIN_H
++#define _VIDEO_VIN_H
++
++#include <linux/cdev.h>
++
++#define DRV_NAME "stf-vin"
++#define FB_FIRST_ADDR      0xf9000000
++#define FB_SECOND_ADDR     0xf97e9000
++
++#define VIN_MIPI_CONTROLLER0_OFFSET 0x00000
++#define VIN_CLKGEN_OFFSET           0x10000
++#define VIN_RSTGEN_OFFSET           0x20000
++#define VIN_MIPI_CONTROLLER1_OFFSET 0x30000
++#define VIN_SYSCONTROLLER_OFFSET    0x40000
++
++#define VD_1080P    1080
++#define VD_720P     720
++#define VD_PAL      480
++
++#define VD_HEIGHT_1080P     VD_1080P
++#define VD_WIDTH_1080P      1920
++
++#define VD_HEIGHT_720P      VD_720P
++#define VD_WIDTH_720P       1080
++
++#define VD_HEIGHT_480       480
++#define VD_WIDTH_640        640
++
++#define VIN_CLKGEN_BASE_ADDR	0x11800000
++#define VIN_RSTGEN_BASE_ADDR	0x11840000
++#define VIN_IOPAD_BASE_ADDR	    0x11858000
++
++//vin clk registers
++#define CLK_VIN_SRC_CTRL		    0x188
++#define CLK_ISP0_AXI_CTRL		    0x190
++#define CLK_ISP0NOC_AXI_CTRL	    0x194
++#define CLK_ISPSLV_AXI_CTRL		    0x198
++#define CLK_ISP1_AXI_CTRL		    0x1A0
++#define CLK_ISP1NOC_AXI_CTRL	    0x1A4
++#define CLK_VIN_AXI		            0x1AC
++#define CLK_VINNOC_AXI		        0x1B0
++
++//isp clk registers
++#define CLK_MIPI_RX0_PXL_CTRL       0x0c
++#define CLK_ISP0_CTRL               0x3c
++#define CLK_ISP0_2X_CTRL            0x40
++#define CLK_ISP0_MIPI_CTRL          0x44
++#define CLK_C_ISP0_CTRL             0x64
++#define CLK_ISP1_CTRL               0x48
++#define CLK_ISP1_2X_CTRL            0x4C
++#define CLK_ISP1_MIPI_CTRL          0x50
++#define CLK_MIPI_RX1_PXL_CTRL       0x10
++#define CLK_C_ISP1_CTRL             0x68
++#define CLK_VIN_AXI_WR_CTRL         0x5C
++
++#define SOFTWARE_RESET_ASSERT0		0x0
++#define SOFTWARE_RESET_ASSERT1		0x4
++
++#define IOPAD_REG81		        0x144
++#define IOPAD_REG82		        0x148
++#define IOPAD_REG83		        0x14C
++#define IOPAD_REG84		        0x150
++#define IOPAD_REG85		        0x154
++#define IOPAD_REG86		        0x158
++#define IOPAD_REG87	            0x15C
++#define IOPAD_REG88	            0x160
++#define IOPAD_REG89	            0x164
++
++//sys control REG DEFINE
++#define SYSCTRL_REG6	            0x18
++#define SYSCTRL_REG10	            0x28
++#define SYSCTRL_REG11	            0x2C
++#define SYSCTRL_REG12	            0x30
++#define SYSCTRL_REG13	            0x34
++#define SYSCTRL_REG14	            0x38
++#define SYSCTRL_REG15	            0x3C
++#define SYSCTRL_REG17	            0x44
++#define SYSCTRL_REG18	            0x48
++#define SYSCTRL_REG19	            0x4C
++#define SYSCTRL_REG20	            0x50
++#define SYSCTRL_REG21	            0x54
++
++#define ISP_NO_SCALE_ENABLE     (0x1<<20)
++#define ISP_MULTI_FRAME_ENABLE  (0x1<<17)
++#define ISP_SS0_ENABLE          (0x1<<11)
++#define ISP_SS1_ENABLE          (0x1<<12)
++#define ISP_RESET               (0x1<<1)
++#define ISP_ENBALE              (0x1)
++
++#define VIN_ISP0_BASE_ADDR	0x19870000
++#define VIN_ISP1_BASE_ADDR	0x198a0000
++
++ //ISP REG DEFINE
++#define ISP_REG_DVP_POLARITY_CFG            0x00000014
++#define ISP_REG_RAW_FORMAT_CFG              0x00000018
++#define ISP_REG_CFA_MODE                    0x00000A1C
++#define ISP_REG_PIC_CAPTURE_START_CFG       0x0000001C
++#define ISP_REG_PIC_CAPTURE_END_CFG         0x00000020
++#define ISP_REG_PIPELINE_XY_SIZE            0x00000A0C
++#define ISP_REG_Y_PLANE_START_ADDR          0x00000A80
++#define ISP_REG_UV_PLANE_START_ADDR         0x00000A84
++#define ISP_REG_STRIDE                      0x00000A88
++#define ISP_REG_PIXEL_COORDINATE_GEN        0x00000A8C
++#define ISP_REG_PIXEL_AXI_CONTROL           0x00000A90
++#define ISP_REG_SS_AXI_CONTROL              0x00000AC4
++#define ISP_REG_RGB_TO_YUV_COVERSION0       0x00000E40
++#define ISP_REG_RGB_TO_YUV_COVERSION1       0x00000E44
++#define ISP_REG_RGB_TO_YUV_COVERSION2       0x00000E48
++#define ISP_REG_RGB_TO_YUV_COVERSION3       0x00000E4C
++#define ISP_REG_RGB_TO_YUV_COVERSION4       0x00000E50
++#define ISP_REG_RGB_TO_YUV_COVERSION5       0x00000E54
++#define ISP_REG_RGB_TO_YUV_COVERSION6       0x00000E58
++#define ISP_REG_RGB_TO_YUV_COVERSION7       0x00000E5C
++#define ISP_REG_RGB_TO_YUV_COVERSION8       0x00000E60
++#define ISP_REG_CIS_MODULE_CFG              0x00000010
++#define ISP_REG_ISP_CTRL_1                  0x00000A08
++#define ISP_REG_ISP_CTRL_0                  0x00000A00
++#define ISP_REG_DC_AXI_ID                   0x00000044
++#define ISP_REG_CSI_INPUT_EN_AND_STATUS     0x00000000
++
++enum VIN_SOURCE_FORMAT {
++	SRC_COLORBAR_VIN_ISP = 0,
++	SRC_DVP_SENSOR_VIN,
++	SRC_DVP_SENSOR_VIN_ISP,//need replace sensor
++	SRC_CSI2RX_VIN_ISP,
++	SRC_DVP_SENSOR_VIN_OV5640,
++};
++
++struct vin_params {
++	void *paddr;
++	unsigned long size;
++};
++
++struct vin_buf {
++	void *vaddr;
++	dma_addr_t paddr;
++	u32 size;
++};
++
++struct vin_framesize {
++	u32 width;
++	u32 height;
++};
++
++struct vin_format {
++	enum VIN_SOURCE_FORMAT format;
++	u8 fps;
++};
++
++struct stf_vin_dev {
++	/* Protects the access of variables shared within the interrupt */
++	spinlock_t irqlock;
++	int irq;
++	struct device *dev;
++	struct cdev vin_cdev;
++	void __iomem *base;
++	void __iomem *base_isp;
++	struct vin_framesize frame;
++	struct vin_format format;
++	bool isp0;
++	bool isp1;
++	int isp0_irq;
++	int isp1_irq;
++	u32 major;
++	struct vin_buf buf;
++
++	wait_queue_head_t wq;
++	bool condition;
++	int odd;
++};
++
++extern int vin_notifier_register(struct notifier_block *nb);
++extern void vin_notifier_unregister(struct notifier_block *nb);
++extern int vin_notifier_call(unsigned long e, void *v);
++#endif
+-- 
+2.30.0
+

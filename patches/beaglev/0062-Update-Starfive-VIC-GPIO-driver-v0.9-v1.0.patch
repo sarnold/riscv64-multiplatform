@@ -1,0 +1,42 @@
+From 3108f20fccb458f2ad17f0af4b992f13fc74e95c Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Mon, 11 Jan 2021 20:22:33 +0800
+Subject: [PATCH 62/86] Update Starfive VIC GPIO driver[v0.9->v1.0]
+
+This patch improves the module init and exit function to make sure that
+the driver can be initialized earlier than other drivers which need to
+use GPIO.
+---
+ drivers/gpio/gpio-starfive-vic.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+ mode change 100644 => 100755 drivers/gpio/gpio-starfive-vic.c
+
+diff --git a/drivers/gpio/gpio-starfive-vic.c b/drivers/gpio/gpio-starfive-vic.c
+old mode 100644
+new mode 100755
+index ec8e4107aac4..c68a00f20255
+--- a/drivers/gpio/gpio-starfive-vic.c
++++ b/drivers/gpio/gpio-starfive-vic.c
+@@ -729,7 +729,18 @@ static struct platform_driver starfive_gpio_driver = {
+ 		.of_match_table	= of_match_ptr(starfive_gpio_match),
+ 	},
+ };
+-builtin_platform_driver(starfive_gpio_driver)
++
++static int __init starfive_gpio_init(void)
++{
++	return platform_driver_register(&starfive_gpio_driver);
++}
++subsys_initcall(starfive_gpio_init);
++
++static void __exit starfive_gpio_exit(void)
++{
++	platform_driver_unregister(&starfive_gpio_driver);
++}
++module_exit(starfive_gpio_exit);
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Huan Feng <huan.feng@starfivetech.com>");
+-- 
+2.30.0
+

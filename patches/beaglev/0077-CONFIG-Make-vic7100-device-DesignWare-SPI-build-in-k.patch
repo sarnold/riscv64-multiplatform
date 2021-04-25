@@ -1,0 +1,29 @@
+From b5eb3b2e5d6560cd226be571605a82586b676536 Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Sat, 20 Feb 2021 03:11:12 +0800
+Subject: [PATCH 77/86] [CONFIG] Make vic7100 device DesignWare SPI build in
+ kernel.
+
+---
+ .../configs/starfive_vic7100_evb_sd_net_fedora_defconfig     | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig b/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
+index ee3ae380c438..baba60eb689d 100644
+--- a/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
++++ b/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
+@@ -3631,7 +3631,10 @@ CONFIG_SPI_MEM=y
+ # CONFIG_SPI_AXI_SPI_ENGINE is not set
+ # CONFIG_SPI_BITBANG is not set
+ # CONFIG_SPI_CADENCE is not set
+-# CONFIG_SPI_DESIGNWARE is not set
++CONFIG_SPI_DESIGNWARE=y
++CONFIG_SPI_DW_DMA=y
++CONFIG_SPI_DW_PCI=y
++CONFIG_SPI_DW_MMIO=y
+ CONFIG_SPI_FSI=m
+ # CONFIG_SPI_NXP_FLEXSPI is not set
+ # CONFIG_SPI_GPIO is not set
+-- 
+2.30.0
+

@@ -1,0 +1,25 @@
+From e8f78072e8f8b300978c63b99572241149d5c13a Mon Sep 17 00:00:00 2001
+From: Peter Robinson <pbrobinson@gmail.com>
+Date: Mon, 26 Oct 2020 17:01:57 +0000
+Subject: [PATCH 35/86] update phy on pine64 a64 devices
+
+---
+ arch/arm64/boot/dts/allwinner/sun50i-a64-pine64.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/allwinner/sun50i-a64-pine64.dts b/arch/arm64/boot/dts/allwinner/sun50i-a64-pine64.dts
+index 329cf276561e..f5fce282999c 100644
+--- a/arch/arm64/boot/dts/allwinner/sun50i-a64-pine64.dts
++++ b/arch/arm64/boot/dts/allwinner/sun50i-a64-pine64.dts
+@@ -81,7 +81,7 @@ &ehci1 {
+ &emac {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&rmii_pins>;
+-	phy-mode = "rmii";
++	phy-mode = "rmii-txid";
+ 	phy-handle = <&ext_rmii_phy1>;
+ 	phy-supply = <&reg_dc1sw>;
+ 	status = "okay";
+-- 
+2.30.0
+

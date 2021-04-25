@@ -1,0 +1,277 @@
+From 06d18cea3878ac141fa40ee7a5170d74a64be64c Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Tue, 12 Jan 2021 01:53:03 +0800
+Subject: [PATCH 63/86] Add USB data cache flush operations in usb core for
+ VIC7100
+
+---
+ drivers/usb/core/devio.c     | 12 ++++++++++
+ drivers/usb/core/hcd.c       | 39 +++++++++++++++++++++++++-------
+ drivers/usb/host/xhci-ring.c | 43 ++++++++++++++++++++++++++++--------
+ 3 files changed, 77 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/usb/core/devio.c b/drivers/usb/core/devio.c
+index 00cf0d43842a..1b6b547a5d90 100644
+--- a/drivers/usb/core/devio.c
++++ b/drivers/usb/core/devio.c
+@@ -1736,6 +1736,12 @@ static int proc_do_submiturb(struct usb_dev_state *ps, struct usbdevfs_urb *uurb
+ 
+ 			as->urb->transfer_buffer = as->usbm->mem +
+ 					(uurb_start - as->usbm->vm_start);
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++			cdns_flush_dcache(as->usbm->dma_handle +
++						(uurb_start - as->usbm->vm_start),
++					  as->usbm->size -
++						(uurb_start - as->usbm->vm_start));
++#endif
+ 		} else {
+ 			as->urb->transfer_buffer = kmalloc(uurb->buffer_length,
+ 					GFP_KERNEL);
+@@ -1822,6 +1828,12 @@ static int proc_do_submiturb(struct usb_dev_state *ps, struct usbdevfs_urb *uurb
+ 		as->urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+ 		as->urb->transfer_dma = as->usbm->dma_handle +
+ 				(uurb_start - as->usbm->vm_start);
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_flush_dcache(as->usbm->dma_handle +
++					(uurb_start - as->usbm->vm_start),
++				  as->usbm->size -
++					(uurb_start - as->usbm->vm_start));
++#endif
+ 	} else if (is_in && uurb->buffer_length > 0)
+ 		as->userbuffer = uurb->buffer;
+ 	as->signr = uurb->signr;
+diff --git a/drivers/usb/core/hcd.c b/drivers/usb/core/hcd.c
+index d55017f16e08..ec191bca4b4b 100644
+--- a/drivers/usb/core/hcd.c
++++ b/drivers/usb/core/hcd.c
+@@ -1312,6 +1312,9 @@ static int hcd_alloc_coherent(struct usb_bus *bus,
+ 		memcpy(vaddr, *vaddr_handle, size);
+ 
+ 	*vaddr_handle = vaddr;
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++	cdns_flush_dcache(*dma_handle, size + sizeof(vaddr));
++#endif
+ 	return 0;
+ }
+ 
+@@ -1323,9 +1326,12 @@ static void hcd_free_coherent(struct usb_bus *bus, dma_addr_t *dma_handle,
+ 
+ 	vaddr = (void *)get_unaligned((unsigned long *)(vaddr + size));
+ 
+-	if (dir == DMA_FROM_DEVICE)
++	if (dir == DMA_FROM_DEVICE) {
+ 		memcpy(vaddr, *vaddr_handle, size);
+-
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_virt_flush_dcache(vaddr, size);
++#endif
++	}
+ 	hcd_buffer_free(bus, size + sizeof(vaddr), *vaddr_handle, *dma_handle);
+ 
+ 	*vaddr_handle = vaddr;
+@@ -1335,12 +1341,16 @@ static void hcd_free_coherent(struct usb_bus *bus, dma_addr_t *dma_handle,
+ void usb_hcd_unmap_urb_setup_for_dma(struct usb_hcd *hcd, struct urb *urb)
+ {
+ 	if (IS_ENABLED(CONFIG_HAS_DMA) &&
+-	    (urb->transfer_flags & URB_SETUP_MAP_SINGLE))
++	    (urb->transfer_flags & URB_SETUP_MAP_SINGLE)) {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_flush_dcache(urb->setup_dma,
++				  sizeof(struct usb_ctrlrequest));
++#endif
+ 		dma_unmap_single(hcd->self.sysdev,
+ 				urb->setup_dma,
+ 				sizeof(struct usb_ctrlrequest),
+ 				DMA_TO_DEVICE);
+-	else if (urb->transfer_flags & URB_SETUP_MAP_LOCAL)
++	} else if (urb->transfer_flags & URB_SETUP_MAP_LOCAL)
+ 		hcd_free_coherent(urb->dev->bus,
+ 				&urb->setup_dma,
+ 				(void **) &urb->setup_packet,
+@@ -1374,23 +1384,36 @@ void usb_hcd_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
+ 				urb->num_sgs,
+ 				dir);
+ 	else if (IS_ENABLED(CONFIG_HAS_DMA) &&
+-		 (urb->transfer_flags & URB_DMA_MAP_PAGE))
++		 (urb->transfer_flags & URB_DMA_MAP_PAGE)) {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_flush_dcache(urb->transfer_dma,
++				  urb->transfer_buffer_length);
++#endif
+ 		dma_unmap_page(hcd->self.sysdev,
+ 				urb->transfer_dma,
+ 				urb->transfer_buffer_length,
+ 				dir);
+-	else if (IS_ENABLED(CONFIG_HAS_DMA) &&
+-		 (urb->transfer_flags & URB_DMA_MAP_SINGLE))
++	} else if (IS_ENABLED(CONFIG_HAS_DMA) &&
++		 (urb->transfer_flags & URB_DMA_MAP_SINGLE)) {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_flush_dcache(urb->transfer_dma,
++				  urb->transfer_buffer_length);
++#endif
+ 		dma_unmap_single(hcd->self.sysdev,
+ 				urb->transfer_dma,
+ 				urb->transfer_buffer_length,
+ 				dir);
+-	else if (urb->transfer_flags & URB_MAP_LOCAL)
++	} else if (urb->transfer_flags & URB_MAP_LOCAL) {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_flush_dcache(urb->transfer_dma,
++				  urb->transfer_buffer_length);
++#endif
+ 		hcd_free_coherent(urb->dev->bus,
+ 				&urb->transfer_dma,
+ 				&urb->transfer_buffer,
+ 				urb->transfer_buffer_length,
+ 				dir);
++	}
+ 
+ 	/* Make it safe to call this routine more than once */
+ 	urb->transfer_flags &= ~(URB_DMA_MAP_SG | URB_DMA_MAP_PAGE |
+diff --git a/drivers/usb/host/xhci-ring.c b/drivers/usb/host/xhci-ring.c
+index ad83001a2af1..c5211407e7a2 100644
+--- a/drivers/usb/host/xhci-ring.c
++++ b/drivers/usb/host/xhci-ring.c
+@@ -743,6 +743,9 @@ static void xhci_unmap_td_bounce_buffer(struct xhci_hcd *xhci,
+ 		return;
+ 
+ 	if (usb_urb_dir_out(urb)) {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_flush_dcache(seg->bounce_dma, ring->bounce_buf_len);
++#endif
+ 		dma_unmap_single(dev, seg->bounce_dma, ring->bounce_buf_len,
+ 				 DMA_TO_DEVICE);
+ 		return;
+@@ -754,7 +757,7 @@ static void xhci_unmap_td_bounce_buffer(struct xhci_hcd *xhci,
+ 	len = sg_pcopy_from_buffer(urb->sg, urb->num_sgs, seg->bounce_buf,
+ 			     seg->bounce_len, seg->bounce_offs);
+ #ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
+-	cdns_virt_flush_dcache(seg->bounce_buf, seg->bounce_len);
++	cdns_flush_dcache(seg->bounce_dma, ring->bounce_buf_len);
+ #endif
+ 	if (len != seg->bounce_len)
+ 		xhci_warn(xhci, "WARN Wrong bounce buffer read length: %zu != %d\n",
+@@ -1521,9 +1524,6 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
+ 
+ 	cmd_dequeue_dma = xhci_trb_virt_to_dma(xhci->cmd_ring->deq_seg,
+ 			cmd_trb);
+-#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
+-	cdns_virt_flush_dcache(cmd_trb, sizeof(union xhci_trb));
+-#endif
+ 	/*
+ 	 * Check whether the completion event is for our internal kept
+ 	 * command.
+@@ -2595,6 +2595,10 @@ static int handle_tx_event(struct xhci_hcd *xhci,
+ #endif
+ 			break;
+ 		}
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		else
++			cdns_virt_flush_dcache(event, sizeof(union xhci_trb));
++#endif
+ 		if (xhci->quirks & XHCI_TRUST_TX_LENGTH ||
+ 		    ep_ring->last_td_was_short)
+ 			trb_comp_code = COMP_SHORT_PACKET;
+@@ -2936,7 +2940,10 @@ static int xhci_handle_event(struct xhci_hcd *xhci)
+ #endif
+ 		return 0;
+ 	}
+-
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++	else
++		cdns_virt_flush_dcache(event, sizeof(union xhci_trb));
++#endif
+ 	trace_xhci_handle_event(xhci->event_ring, &event->generic);
+ 
+ 	/*
+@@ -3025,6 +3032,9 @@ static void xhci_update_erst_dequeue(struct xhci_hcd *xhci,
+ 		/* Update HC event ring dequeue pointer */
+ 		temp_64 &= ERST_PTR_MASK;
+ 		temp_64 |= ((u64) deq & (u64) ~ERST_PTR_MASK);
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++		cdns_flush_dcache(deq, sizeof(union xhci_trb));
++#endif
+ 	}
+ 
+ 	/* Clear the event handler busy flag (RW1C) */
+@@ -3820,6 +3830,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 			field |= TRB_DIR_IN;
+ #ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
+ 		cdns_virt_flush_dcache(setup, sizeof(struct usb_ctrlrequest));
++		cdns_flush_dcache(urb->transfer_dma, urb->transfer_buffer_length);
+ #endif
+ 		queue_trb(xhci, ep_ring, true,
+ 				lower_32_bits(addr),
+@@ -4143,7 +4154,9 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 			else
+ 				length_field |= TRB_TD_SIZE(remainder);
+ 			first_trb = false;
+-
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++			cdns_flush_dcache(addr, trb_buff_len);
++#endif
+ 			queue_trb(xhci, ep_ring, more_trbs_coming,
+ 				lower_32_bits(addr),
+ 				upper_32_bits(addr),
+@@ -4235,14 +4248,14 @@ int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 	/* Check the ring to guarantee there is enough room for the whole urb.
+ 	 * Do not insert any td of the urb to the ring if the check failed.
+ 	 */
+-#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++#if defined(CONFIG_USB_CDNS3_HOST_FLUSH_DMA)
+ 	ep_state = GET_EP_CTX_STATE(ep_ctx);
+ 	cdns_virt_flush_dcache(ep_ctx, sizeof(*ep_ctx));
+-	ret = prepare_ring(xhci, ep_ring, ep_state,
++	ret = prepare_ring(xhci, ep_ring, ep_state, num_trbs, mem_flags);
+ #else
+ 	ret = prepare_ring(xhci, ep_ring, GET_EP_CTX_STATE(ep_ctx),
+-#endif
+ 			   num_trbs, mem_flags);
++#endif
+ 	if (ret)
+ 		return ret;
+ 
+@@ -4360,6 +4373,9 @@ int xhci_queue_slot_control(struct xhci_hcd *xhci, struct xhci_command *cmd,
+ int xhci_queue_address_device(struct xhci_hcd *xhci, struct xhci_command *cmd,
+ 		dma_addr_t in_ctx_ptr, u32 slot_id, enum xhci_setup_dev setup)
+ {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++	cdns_flush_dcache(in_ctx_ptr, sizeof(struct xhci_ep_ctx));
++#endif
+ 	return queue_command(xhci, cmd, lower_32_bits(in_ctx_ptr),
+ 			upper_32_bits(in_ctx_ptr), 0,
+ 			TRB_TYPE(TRB_ADDR_DEV) | SLOT_ID_FOR_TRB(slot_id)
+@@ -4386,6 +4402,9 @@ int xhci_queue_configure_endpoint(struct xhci_hcd *xhci,
+ 		struct xhci_command *cmd, dma_addr_t in_ctx_ptr,
+ 		u32 slot_id, bool command_must_succeed)
+ {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++	cdns_flush_dcache(in_ctx_ptr, sizeof(struct xhci_ep_ctx));
++#endif
+ 	return queue_command(xhci, cmd, lower_32_bits(in_ctx_ptr),
+ 			upper_32_bits(in_ctx_ptr), 0,
+ 			TRB_TYPE(TRB_CONFIG_EP) | SLOT_ID_FOR_TRB(slot_id),
+@@ -4396,6 +4415,9 @@ int xhci_queue_configure_endpoint(struct xhci_hcd *xhci,
+ int xhci_queue_evaluate_context(struct xhci_hcd *xhci, struct xhci_command *cmd,
+ 		dma_addr_t in_ctx_ptr, u32 slot_id, bool command_must_succeed)
+ {
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++	cdns_flush_dcache(in_ctx_ptr, sizeof(struct xhci_ep_ctx));
++#endif
+ 	return queue_command(xhci, cmd, lower_32_bits(in_ctx_ptr),
+ 			upper_32_bits(in_ctx_ptr), 0,
+ 			TRB_TYPE(TRB_EVAL_CONTEXT) | SLOT_ID_FOR_TRB(slot_id),
+@@ -4466,6 +4488,9 @@ void xhci_queue_new_dequeue_state(struct xhci_hcd *xhci,
+ 	ep->queued_deq_ptr = deq_state->new_deq_ptr;
+ 	if (deq_state->stream_id)
+ 		trb_sct = SCT_FOR_TRB(SCT_PRI_TR);
++#ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
++	cdns_flush_dcache(addr, sizeof(union xhci_trb));
++#endif
+ 	ret = queue_command(xhci, cmd,
+ 		lower_32_bits(addr) | trb_sct | deq_state->new_cycle_state,
+ 		upper_32_bits(addr), trb_stream_id,
+-- 
+2.30.0
+

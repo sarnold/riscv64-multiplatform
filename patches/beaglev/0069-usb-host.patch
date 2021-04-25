@@ -1,0 +1,38 @@
+From d82d9721a002006c4a11c458b97c470c14333b9b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=B0=81=E6=AC=A2?= <huan.feng@starfivetech.com>
+Date: Tue, 26 Jan 2021 11:17:39 +0800
+Subject: [PATCH 69/86] =?UTF-8?q?usb=E9=BB=98=E8=AE=A4=E4=BD=BF=E7=94=A8ho?=
+ =?UTF-8?q?st=E6=A8=A1=E5=BC=8F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ drivers/usb/cdns3/core.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/cdns3/core.c b/drivers/usb/cdns3/core.c
+index 169539c1beb0..2c00fc671c94 100644
+--- a/drivers/usb/cdns3/core.c
++++ b/drivers/usb/cdns3/core.c
+@@ -91,11 +91,15 @@ static int cdns3_core_init_role(struct cdns3 *cdns)
+ 
+ 	dr_mode = usb_get_dr_mode(dev);
+ 	cdns->role = USB_ROLE_NONE;
+-
++#if 0
+ 	if(!gpio_get_value(22))
++	{
+ 		dr_mode = USB_DR_MODE_HOST;
+-	else
++	} else {
+ 		dr_mode = USB_DR_MODE_PERIPHERAL;
++	}
++#endif
++	dr_mode = USB_DR_MODE_HOST;
+ 	/*
+ 	 * If driver can't read mode by means of usb_get_dr_mode function then
+ 	 * chooses mode according with Kernel configuration. This setting
+-- 
+2.30.0
+

@@ -1,0 +1,1063 @@
+From a05c1254123cf65fa65c068a80c699fff60be545 Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Mon, 11 Jan 2021 04:05:31 +0800
+Subject: [PATCH 66/86] media add
+
+---
+ drivers/media/platform/Kconfig               |   1 +
+ drivers/media/platform/starfive/Kconfig      |  16 +
+ drivers/media/platform/starfive/Makefile     |   2 +
+ drivers/media/platform/starfive/ov5640_dvp.c | 456 +++++++++++++++++++
+ drivers/media/platform/starfive/sc2235.c     | 422 +++++++++++++++++
+ drivers/media/platform/starfive/stf_isp.c    |  10 +-
+ drivers/media/platform/starfive/stf_isp.h    |   1 -
+ drivers/media/platform/starfive/stf_vin.c    |  12 +-
+ 8 files changed, 908 insertions(+), 12 deletions(-)
+ mode change 100644 => 100755 drivers/media/platform/Kconfig
+ create mode 100755 drivers/media/platform/starfive/Kconfig
+ create mode 100755 drivers/media/platform/starfive/ov5640_dvp.c
+ create mode 100755 drivers/media/platform/starfive/sc2235.c
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+old mode 100644
+new mode 100755
+index 7423be6cb98c..44c258ce68af
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -160,6 +160,7 @@ source "drivers/media/platform/xilinx/Kconfig"
+ source "drivers/media/platform/rcar-vin/Kconfig"
+ source "drivers/media/platform/atmel/Kconfig"
+ source "drivers/media/platform/sunxi/Kconfig"
++source "drivers/media/platform/starfive/Kconfig"
+ 
+ config VIDEO_TI_CAL
+ 	tristate "TI CAL (Camera Adaptation Layer) driver"
+diff --git a/drivers/media/platform/starfive/Kconfig b/drivers/media/platform/starfive/Kconfig
+new file mode 100755
+index 000000000000..9ea922c2d533
+--- /dev/null
++++ b/drivers/media/platform/starfive/Kconfig
+@@ -0,0 +1,16 @@
++#
++# VIN sensor driver configuration
++#
++config VIN_SENSOR_OV5640
++	bool "VIN SENSOR support OV5640"
++	depends on VIDEO_STF_VIN
++	default n
++	help
++	  Say Y here if you want to have support for VIN sensor OV5640
++
++config VIN_SENSOR_SC2235
++	bool "VIN SENSOR support SC2235"
++	depends on VIDEO_STF_VIN
++	default n
++	help
++	  Say Y here if you want to have support for VIN sensor SC2235
+diff --git a/drivers/media/platform/starfive/Makefile b/drivers/media/platform/starfive/Makefile
+index e11facdcd148..469c18c3f8ee 100644
+--- a/drivers/media/platform/starfive/Makefile
++++ b/drivers/media/platform/starfive/Makefile
+@@ -3,4 +3,6 @@
+ # Makefile for RTC class/drivers.
+ #
+ 
++obj-$(CONFIG_VIN_SENSOR_OV5640) += ov5640_dvp.o
++obj-$(CONFIG_VIN_SENSOR_SC2235) += sc2235.o
+ obj-$(CONFIG_VIDEO_STF_VIN) += stf_vin.o stf_event.o stf_isp.o
+diff --git a/drivers/media/platform/starfive/ov5640_dvp.c b/drivers/media/platform/starfive/ov5640_dvp.c
+new file mode 100755
+index 000000000000..acc524a3af0b
+--- /dev/null
++++ b/drivers/media/platform/starfive/ov5640_dvp.c
+@@ -0,0 +1,456 @@
++/*
++ * Copyright (C) 2011-2013 StarFive Technology Co., Ltd. All Rights Reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/ctype.h>
++#include <linux/types.h>
++#include <linux/delay.h>
++#include <linux/i2c.h>
++#include <linux/gpio-starfive-vic.h>
++
++#define OV5640_CHIP_ID_HIGH_BYTE	0x300A   // max should be 0x56
++#define OV5640_CHIP_ID_LOW_BYTE		0x300B   // max should be 0x40
++
++#define OV5640_REG_3820	    0x3820
++#define OV5640_REG_3821		0x3821
++struct sensor_data {
++	struct i2c_client *i2c_client;
++};
++
++struct reg_value {
++	u16 u16RegAddr;
++	u8 u8Val;
++	u8 u8Mask;
++	u32 u32Delay_ms;
++};
++
++/*!
++ * Maintains the information on the current state of the sesor.
++ */
++static struct sensor_data ov5640_data;
++
++static int ov5640_probe(struct i2c_client *adapter,
++				const struct i2c_device_id *device_id);
++static int ov5640_remove(struct i2c_client *client);
++
++static s32 ov5640_read_reg(u16 reg, u8 *val);
++static s32 ov5640_write_reg(u16 reg, u8 val);
++
++static const struct i2c_device_id ov5640_id[] = {
++	{"ov5640", 0},
++	{},
++};
++
++MODULE_DEVICE_TABLE(i2c, ov5640_id);
++
++static struct i2c_driver ov5640_i2c_driver = {
++	.driver = {
++		  .owner = THIS_MODULE,
++		  .name  = "ov564x_dvp",
++		  },
++	.probe  = ov5640_probe,
++	.remove = ov5640_remove,
++	.id_table = ov5640_id,
++};
++
++static struct reg_value ov5640_init_setting_30fps_VGA[] = {
++	{0x3008, 0x42,0, 0}, // software power down
++	{0x3103, 0x03,0, 0}, // sysclk from pll
++	{0x3017, 0xff,0, 0}, // Frex, Vsync, Href, PCLK, D[9:6] output
++	{0x3018, 0xff,0, 0}, // D[5:0], GPIO[1:0] output
++	{0x3034, 0x1a,0, 0}, // PLL, MIPI 10-bit
++	{0x3037, 0x13,0, 0}, // PLL
++	{0x3108, 0x01,0, 0}, // clock divider
++	{0x3630, 0x36,0, 0},
++	{0x3631, 0x0e,0, 0},
++	{0x3632, 0xe2,0, 0},
++	{0x3633, 0x12,0, 0},
++	{0x3621, 0xe0,0, 0},
++	{0x3704, 0xa0,0, 0},
++	{0x3703, 0x5a,0, 0},
++	{0x3715, 0x78,0, 0},
++	{0x3717, 0x01,0, 0},
++	{0x370b, 0x60,0, 0},
++	{0x3705, 0x1a,0, 0},
++	{0x3905, 0x02,0, 0},
++	{0x3906, 0x10,0, 0},
++	{0x3901, 0x0a,0, 0},
++	{0x3731, 0x12,0, 0},
++	{0x3600, 0x08,0, 0}, // VCM debug
++	{0x3601, 0x33,0, 0}, // VCM debug
++	{0x302d, 0x60,0, 0}, // system control
++	{0x3620, 0x52,0, 0},
++	{0x371b, 0x20,0, 0},
++	{0x471c, 0x50,0, 0},
++	{0x3a13, 0x43,0, 0}, // pre-gain = 1.05x
++	{0x3a18, 0x00,0, 0}, // AEC gain ceiling = 7.75x
++	{0x3a19, 0x7c,0, 0}, // AEC gain ceiling
++	{0x3635, 0x13,0, 0},
++	{0x3636, 0x03,0, 0},
++	{0x3634, 0x40,0, 0},
++	{0x3622, 0x01,0, 0},
++	{0x3c01, 0x34,0, 0}, // sum auto, band counter enable, threshold = 4
++	{0x3c04, 0x28,0, 0}, // threshold low sum
++	{0x3c05, 0x98,0, 0}, // threshold high sum
++	{0x3c06, 0x00,0, 0}, // light meter 1 threshold H
++	{0x3c07, 0x07,0, 0}, // light meter 1 threshold L
++	{0x3c08, 0x00,0, 0}, // light meter 2 threshold H
++	{0x3c09, 0x1c,0, 0}, // light meter 2 threshold L
++	{0x3c0a, 0x9c,0, 0}, // sample number H
++	{0x3c0b, 0x40,0, 0}, // sample number L
++	{0x3810, 0x00,0, 0}, // X offset
++	{0x3811, 0x10,0, 0}, // X offset
++	{0x3812, 0x00,0, 0}, // Y offset
++	{0x3708, 0x64,0, 0},
++	{0x4001, 0x02,0, 0}, // BLC start line
++	{0x4005, 0x1a,0, 0}, // BLC always update
++	{0x3000, 0x00,0, 0}, // enable MCU, OTP
++	{0x3004, 0xff,0, 0}, // enable BIST, MCU memory, MCU, OTP, STROBE, D5060, timing, array clock
++	{0x300e, 0x58,0, 0}, // MIPI 2 lane? power down PHY HS TX, PHY LP RX, DVP enable
++	{0x302e, 0x00,0, 0},
++	{0x4300, 0x6f,0, 0}, //rgb565 {0x4300, 0x3f,0, 0}, // YUV 422, YUYV
++	{0x501f, 0x01,0, 0}, //rgb565 {0x501f, 0x00,0, 0}, // ISP YUV 422
++	{0x440e, 0x00,0, 0},
++	{0x5000, 0xa7,0, 0}, // LENC on, raw gamma on, BPC on, WPC on, CIP on
++	{0x3a0f, 0x30,0, 0}, // stable in high
++	{0x3a10, 0x28,0, 0}, // stable in low
++	{0x3a1b, 0x30,0, 0}, // stable out high
++	{0x3a1e, 0x26,0, 0}, // stable out low
++	{0x3a11, 0x60,0, 0}, // fast zone high
++	{0x3a1f, 0x14,0, 0}, // fast zone low
++	{0x5800, 0x23,0, 0},
++	{0x5801, 0x14,0, 0},
++	{0x5802, 0x0f,0, 0},
++	{0x5803, 0x0f,0, 0},
++	{0x5804, 0x12,0, 0},
++	{0x5805, 0x26,0, 0},
++	{0x5806, 0x0c,0, 0},
++	{0x5807, 0x08,0, 0},
++	{0x5808, 0x05,0, 0},
++	{0x5809, 0x05,0, 0},
++	{0x580a, 0x08,0, 0},
++	{0x580b, 0x0d,0, 0},
++	{0x580c, 0x08,0, 0},
++	{0x580d, 0x03,0, 0},
++	{0x580e, 0x00,0, 0},
++	{0x580f, 0x00,0, 0},
++	{0x5810, 0x03,0, 0},
++	{0x5811, 0x09,0, 0},
++	{0x5812, 0x07,0, 0},
++	{0x5813, 0x03,0, 0},
++	{0x5814, 0x00,0, 0},
++	{0x5815, 0x01,0, 0},
++	{0x5816, 0x03,0, 0},
++	{0x5817, 0x08,0, 0},
++	{0x5818, 0x0d,0, 0},
++	{0x5819, 0x08,0, 0},
++	{0x581a, 0x05,0, 0},
++	{0x581b, 0x06,0, 0},
++	{0x581c, 0x08,0, 0},
++	{0x581d, 0x0e,0, 0},
++	{0x581e, 0x29,0, 0},
++	{0x581f, 0x17,0, 0},
++	{0x5820, 0x11,0, 0},
++	{0x5821, 0x11,0, 0},
++	{0x5822, 0x15,0, 0},
++	{0x5823, 0x28,0, 0},
++	{0x5824, 0x46,0, 0},
++	{0x5825, 0x26,0, 0},
++	{0x5826, 0x08,0, 0},
++	{0x5827, 0x26,0, 0},
++	{0x5828, 0x64,0, 0},
++	{0x5829, 0x26,0, 0},
++	{0x582a, 0x24,0, 0},
++	{0x582b, 0x22,0, 0},
++	{0x582c, 0x24,0, 0},
++	{0x582d, 0x24,0, 0},
++	{0x582e, 0x06,0, 0},
++	{0x582f, 0x22,0, 0},
++	{0x5830, 0x40,0, 0},
++	{0x5831, 0x42,0, 0},
++	{0x5832, 0x24,0, 0},
++	{0x5833, 0x26,0, 0},
++	{0x5834, 0x24,0, 0},
++	{0x5835, 0x22,0, 0},
++	{0x5836, 0x22,0, 0},
++	{0x5837, 0x26,0, 0},
++	{0x5838, 0x44,0, 0},
++	{0x5839, 0x24,0, 0},
++	{0x583a, 0x26,0, 0},
++	{0x583b, 0x28,0, 0},
++	{0x583c, 0x42,0, 0},
++	{0x583d, 0xce,0, 0}, // LENC BR offset
++	{0x5180, 0xff,0, 0}, // AWB B block
++	{0x5181, 0xf2,0, 0}, // AWB control
++	{0x5182, 0x00,0, 0}, // [7:4] max local counter, [3:0] max fast counter
++	{0x5183, 0x14,0, 0}, // AWB advance
++	{0x5184, 0x25,0, 0},
++	{0x5185, 0x24,0, 0},
++	{0x5186, 0x09,0, 0},
++	{0x5187, 0x09,0, 0},
++	{0x5188, 0x09,0, 0},
++	{0x5189, 0x75,0, 0},
++	{0x518a, 0x54,0, 0},
++	{0x518b, 0xe0,0, 0},
++	{0x518c, 0xb2,0, 0},
++	{0x518d, 0x42,0, 0},
++	{0x518e, 0x3d,0, 0},
++	{0x518f, 0x56,0, 0},
++	{0x5190, 0x46,0, 0},
++	{0x5191, 0xf8,0, 0}, // AWB top limit
++	{0x5192, 0x04,0, 0}, // AWB botton limit
++	{0x5193, 0x70,0, 0}, // Red limit
++	{0x5194, 0xf0,0, 0}, // Green Limit
++	{0x5195, 0xf0,0, 0}, // Blue limit
++	{0x5196, 0x03,0, 0}, // AWB control
++	{0x5197, 0x01,0, 0}, // local limit
++	{0x5198, 0x04,0, 0},
++	{0x5199, 0x12,0, 0},
++	{0x519a, 0x04,0, 0},
++	{0x519b, 0x00,0, 0},
++	{0x519c, 0x06,0, 0},
++	{0x519d, 0x82,0, 0},
++	{0x519e, 0x38,0, 0}, // AWB control
++	{0x5480, 0x01,0, 0}, // BIAS plus on
++	{0x5481, 0x08,0, 0},
++	{0x5482, 0x14,0, 0},
++	{0x5483, 0x28,0, 0},
++	{0x5484, 0x51,0, 0},
++	{0x5485, 0x65,0, 0},
++	{0x5486, 0x71,0, 0},
++	{0x5487, 0x7d,0, 0},
++	{0x5488, 0x87,0, 0},
++	{0x5489, 0x91,0, 0},
++	{0x548a, 0x9a,0, 0},
++	{0x548b, 0xaa,0, 0},
++	{0x548c, 0xb8,0, 0},
++	{0x548d, 0xcd,0, 0},
++	{0x548e, 0xdd,0, 0},
++	{0x548f, 0xea,0, 0},
++	{0x5490, 0x1d,0, 0},
++	{0x5381, 0x1e,0, 0}, // CMX1 for Y
++	{0x5382, 0x5b,0, 0}, // CMX2 for Y
++	{0x5383, 0x08,0, 0}, // CMX3 for Y
++	{0x5384, 0x0a,0, 0}, // CMX4 for U
++	{0x5385, 0x7e,0, 0}, // CMX5 for U
++	{0x5386, 0x88,0, 0}, // CMX6 for U
++	{0x5387, 0x7c,0, 0}, // CMX7 for V
++	{0x5388, 0x6c,0, 0}, // CMX8 for V
++	{0x5389, 0x10,0, 0}, // CMX9 for V
++	{0x538a, 0x01,0, 0}, // sign[9]
++	{0x538b, 0x98,0, 0}, // sign[8:1]
++	{0x5580, 0x06,0, 0}, // brightness on, saturation on
++	{0x5583, 0x40,0, 0}, // Sat U
++	{0x5584, 0x10,0, 0}, // Sat V
++	{0x5589, 0x10,0, 0}, // UV adjust th1
++	{0x558a, 0x00,0, 0}, // UV adjust th2[8]
++	{0x558b, 0xf8,0, 0}, // UV adjust th2[7:0]
++	{0x501d, 0x40,0, 0}, // enable manual offset in contrast
++	{0x5300, 0x08,0, 0}, // sharpen-MT th1
++	{0x5301, 0x30,0, 0}, // sharpen-MT th2
++	{0x5302, 0x10,0, 0}, // sharpen-MT off1
++	{0x5303, 0x00,0, 0}, // sharpen-MT off2
++	{0x5304, 0x08,0, 0}, // De-noise th1
++	{0x5305, 0x30,0, 0}, // De-noise th2
++	{0x5306, 0x08,0, 0}, // De-noise off1
++	{0x5307, 0x16,0, 0}, // De-noise off2
++	{0x5309, 0x08,0, 0}, // sharpen-TH th1
++	{0x530a, 0x30,0, 0}, // sharpen-TH th2
++	{0x530b, 0x04,0, 0}, // sharpen-TH off1
++	{0x530c, 0x06,0, 0}, // sharpen-TH off2
++	{0x5025, 0x00,0, 0},
++	{0x3008, 0x02,0, 0}, // wake up from software power downd
++};
++
++static struct reg_value ov5640_setting_30fps_1080P_1920_1080[] = {
++	{0x3824, 0x02, 0, 0}, {0x5001, 0x83, 0, 0}, {0x3035, 0x11, 0, 0},
++	{0x3036, 0x54, 0, 0}, {0x3c07, 0x07, 0, 0}, {0x3c08, 0x00, 0, 0},
++	{0x3c09, 0x1c, 0, 0}, {0x3c0a, 0x9c, 0, 0}, {0x3c0b, 0x40, 0, 0},
++	{0x3800, 0x01, 0, 0}, {0x3801, 0x50, 0, 0}, {0x3802, 0x01, 0, 0},
++	{0x3803, 0xb2, 0, 0}, {0x3804, 0x08, 0, 0}, {0x3805, 0xef, 0, 0},
++	{0x3806, 0x05, 0, 0}, {0x3807, 0xf1, 0, 0}, {0x3808, 0x07, 0, 0},
++	{0x3809, 0x80, 0, 0}, {0x380a, 0x04, 0, 0}, {0x380b, 0x38, 0, 0},
++	{0x380c, 0x09, 0, 0}, {0x380d, 0xc4, 0, 0}, {0x380e, 0x04, 0, 0},
++	{0x380f, 0x60, 0, 0}, {0x3612, 0x2b, 0, 0}, {0x3708, 0x64, 0, 0},
++	{0x3a02, 0x04, 0, 0}, {0x3a03, 0x60, 0, 0}, {0x3a08, 0x01, 0, 0},
++	{0x3a09, 0x50, 0, 0}, {0x3a0a, 0x01, 0, 0}, {0x3a0b, 0x18, 0, 0},
++	{0x3a0e, 0x03, 0, 0}, {0x3a0d, 0x04, 0, 0}, {0x3a14, 0x04, 0, 0},
++	{0x3a15, 0x60, 0, 0}, {0x4713, 0x02, 0, 0}, {0x4407, 0x04, 0, 0},
++	{0x460b, 0x37, 0, 0}, {0x460c, 0x20, 0, 0}, {0x3824, 0x04, 0, 0},
++	{0x4005, 0x1a, 0, 0}, {0x3008, 0x02, 0, 0}, {0x3503, 0, 0, 0},
++};
++
++static s32 ov5640_write_reg(u16 reg, u8 val)
++{
++	u8 au8Buf[3] = {0};
++
++	au8Buf[0] = reg >> 8;
++	au8Buf[1] = reg & 0xff;
++	au8Buf[2] = val;
++
++	if (i2c_master_send(ov5640_data.i2c_client, au8Buf, 3) < 0) {
++		pr_err("%s:write reg error:reg=%x,val=%x\n",
++			__func__, reg, val);
++		return -1;
++	}
++
++	return 0;
++}
++
++static s32 ov5640_read_reg(u16 reg, u8 *val)
++{
++	u8 au8RegBuf[2] = {0};
++	u8 u8RdVal = 0;
++
++	au8RegBuf[0] = reg >> 8;
++	au8RegBuf[1] = reg & 0xff;
++
++	if (2 != i2c_master_send(ov5640_data.i2c_client, au8RegBuf, 2)) {
++		pr_err("%s:write reg error:reg=%x\n",
++				__func__, reg);
++		return -1;
++	}
++
++	if (1 != i2c_master_recv(ov5640_data.i2c_client, &u8RdVal, 1)) {
++		pr_err("%s:read reg error:reg=%x,val=%x\n",
++				__func__, reg, u8RdVal);
++		return -1;
++	}
++
++	*val = u8RdVal;
++
++	return u8RdVal;
++}
++
++/* download ov5640 settings to sensor through i2c */
++static int ov5640_download_firmware(struct reg_value *pModeSetting, s32 ArySize)
++{
++	register u32 Delay_ms = 0;
++	register u16 RegAddr = 0;
++	register u8 Mask = 0;
++	register u8 Val = 0;
++	u8 RegVal = 0;
++	int i, retval = 0;
++
++	for (i = 0; i < ArySize; ++i, ++pModeSetting) {
++		Delay_ms = pModeSetting->u32Delay_ms;
++		RegAddr = pModeSetting->u16RegAddr;
++		Val = pModeSetting->u8Val;
++		Mask = pModeSetting->u8Mask;
++
++		if (Mask) {
++			retval = ov5640_read_reg(RegAddr, &RegVal);
++			if (retval < 0)
++				goto err;
++
++			RegVal &= ~(u8)Mask;
++			Val &= Mask;
++			Val |= RegVal;
++		}
++
++		retval = ov5640_write_reg(RegAddr, Val);
++		if (retval < 0)
++			goto err;
++
++		if (Delay_ms)
++			msleep(Delay_ms);
++	}
++err:
++	return retval;
++}
++
++/*!
++ * ov5640 I2C probe function
++ *
++ * @param adapter            struct i2c_adapter *
++ * @return  Error code indicating success or failure
++ */
++static int ov5640_probe(struct i2c_client *client,
++			const struct i2c_device_id *id)
++{
++	int retval, ArySize;
++	u8 chip_id_high, chip_id_low;
++	u8 reg3820, reg3821;
++	struct reg_value *pModeSetting = NULL;
++
++	ov5640_data.i2c_client = client;
++	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
++	if (retval < 0 || chip_id_high != 0x56) {
++		pr_warn("camera ov5640_dvp is not found\n");
++		return -ENODEV;
++	}
++	retval = ov5640_read_reg(OV5640_CHIP_ID_LOW_BYTE, &chip_id_low);
++	if (retval < 0 || chip_id_low != 0x40) {
++		pr_warn("camera ov5640_dvp is not found\n");
++		return -ENODEV;
++	}
++	/* initialize dvp sensor */
++	pModeSetting = ov5640_init_setting_30fps_VGA;
++
++	retval = ov5640_read_reg(OV5640_REG_3820, &reg3820);
++	if (retval < 0 ) {
++		pr_warn("OV5640_REG_3820 fail to read\n");
++		return -ENODEV;
++	}
++	ov5640_write_reg(OV5640_REG_3820, reg3820|0x06);
++
++    retval = ov5640_read_reg(OV5640_REG_3821, &reg3821);
++	if (retval < 0 ) {
++		pr_warn("OV5640_REG_3821 fail to read\n");
++		return -ENODEV;
++	}
++	ov5640_write_reg(OV5640_REG_3821, reg3821&0xf9);
++
++	ArySize = ARRAY_SIZE(ov5640_init_setting_30fps_VGA);
++	retval = ov5640_download_firmware(pModeSetting, ArySize);
++	/* set resolution to 1920x1080, 30 fps*/
++	pModeSetting = ov5640_setting_30fps_1080P_1920_1080;
++	ArySize = ARRAY_SIZE(ov5640_setting_30fps_1080P_1920_1080);
++	retval = ov5640_download_firmware(pModeSetting, ArySize);
++
++    return 0;
++}
++
++/*!
++ * ov5640 I2C detach function
++ *
++ * @param client            struct i2c_client *
++ * @return  Error code indicating success or failure
++ */
++static int ov5640_remove(struct i2c_client *client)
++{
++	return 0;
++}
++
++//module_i2c_driver(ov5640_i2c_driver);
++static __init int init_ov5640(void)
++{
++    int err;
++
++	err = i2c_add_driver(&ov5640_i2c_driver);
++    if (err != 0)
++		printk("i2c driver registration failed, error=%d\n", err);
++
++	return err;
++}
++
++static __exit void exit_ov5640(void)
++{
++	i2c_del_driver(&ov5640_i2c_driver);
++}
++
++fs_initcall(init_ov5640);
++module_exit(exit_ov5640);
++
++MODULE_AUTHOR("StarFive Technology Co., Ltd.");
++MODULE_DESCRIPTION("OV5640 DVP Camera Driver");
++MODULE_LICENSE("GPL");
++MODULE_VERSION("1.0");
++MODULE_ALIAS("DVP");
+diff --git a/drivers/media/platform/starfive/sc2235.c b/drivers/media/platform/starfive/sc2235.c
+new file mode 100755
+index 000000000000..e4ed226e468a
+--- /dev/null
++++ b/drivers/media/platform/starfive/sc2235.c
+@@ -0,0 +1,422 @@
++/*
++ * Copyright (C) 2020 StarFive Technology Co., Ltd. All Rights Reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/i2c.h>
++#include <linux/delay.h>
++#include <linux/gpio.h>
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/gpio-starfive-vic.h>
++
++
++#define SC2235_CHIP_ID_H	(0x22)
++#define SC2235_CHIP_ID_L	(0x35)
++#define SC2235_REG_END		0xffff
++#define SC2235_REG_DELAY	0xfffe
++
++struct regval_list {
++	uint16_t reg_num;
++	unsigned char value;
++};
++
++/* sc2235 initial register */
++static struct regval_list sc2235_init_regs_tbl_1080[] = {
++	{0x0103, 0x01},
++	{0x0100, 0x00},
++	{0x3039, 0x80},
++	{0x3621, 0x28},
++
++	{0x3309, 0x60},
++	{0x331f, 0x4d},
++	{0x3321, 0x4f},
++	{0x33b5, 0x10},
++
++	{0x3303, 0x20},
++	{0x331e, 0x0d},
++	{0x3320, 0x0f},
++
++	{0x3622, 0x02},
++	{0x3633, 0x42},
++	{0x3634, 0x42},
++
++	{0x3306, 0x66},
++	{0x330b, 0xd1},
++
++	{0x3301, 0x0e},
++
++	{0x320c, 0x08},
++	{0x320d, 0x98},
++
++	{0x3364, 0x05},		// [2] 1: write at sampling ending
++
++	{0x363c, 0x28},		//bypass nvdd
++	{0x363b, 0x0a},		//HVDD
++	{0x3635, 0xa0},		//TXVDD
++
++	{0x4500, 0x59},
++	{0x3d08, 0x02},
++	{0x3908, 0x11},
++
++	{0x363c, 0x08},
++
++	{0x3e03, 0x03},
++	{0x3e01, 0x46},
++
++	//0703
++	{0x3381, 0x0a},
++	{0x3348, 0x09},
++	{0x3349, 0x50},
++	{0x334a, 0x02},
++	{0x334b, 0x60},
++
++	{0x3380, 0x04},
++	{0x3340, 0x06},
++	{0x3341, 0x50},
++	{0x3342, 0x02},
++	{0x3343, 0x60},
++
++	//0707
++
++	{0x3632, 0x88},		//anti sm
++	{0x3309, 0xa0},
++	{0x331f, 0x8d},
++	{0x3321, 0x8f},
++
++	{0x335e, 0x01},		//ana dithering
++	{0x335f, 0x03},
++	{0x337c, 0x04},
++	{0x337d, 0x06},
++	{0x33a0, 0x05},
++	{0x3301, 0x05},
++
++	{0x337f, 0x03},		//new auto precharge  330e in 3372   [7:6] 11: close div_rst 00:open div_rst
++	{0x3368, 0x02},
++	{0x3369, 0x00},
++	{0x336a, 0x00},
++	{0x336b, 0x00},
++	{0x3367, 0x08},
++	{0x330e, 0x30},
++
++	{0x3366, 0x7c},		// div_rst gap
++
++	{0x3635, 0xc1},
++	{0x363b, 0x09},
++	{0x363c, 0x07},
++
++	{0x391e, 0x00},
++
++	{0x3637, 0x14},		//fullwell 7K
++
++	{0x3306, 0x54},
++	{0x330b, 0xd8},
++	{0x366e, 0x08},		// ofs auto en [3]
++	{0x366f, 0x2f},		// ofs+finegain  real ofs in { 0x3687[4:0]
++
++	{0x3631, 0x84},
++	{0x3630, 0x48},
++	{0x3622, 0x06},
++
++	//ramp by sc
++	{0x3638, 0x1f},
++	{0x3625, 0x02},
++	{0x3636, 0x24},
++
++	//0714
++	{0x3348, 0x08},
++	{0x3e03, 0x0b},
++
++	//7.17 fpn
++	{0x3342, 0x03},
++	{0x3343, 0xa0},
++	{0x334a, 0x03},
++	{0x334b, 0xa0},
++
++	//0718
++	{0x3343, 0xb0},
++	{0x334b, 0xb0},
++
++	//0720
++	//digital ctrl
++	{0x3802, 0x01},
++	{0x3235, 0x04},
++	{0x3236, 0x63},		// vts-2
++
++	//fpn
++	{0x3343, 0xd0},
++	{0x334b, 0xd0},
++	{0x3348, 0x07},
++	{0x3349, 0x80},
++
++	//0724
++	{0x391b, 0x4d},
++
++	{0x3342, 0x04},
++	{0x3343, 0x20},
++	{0x334a, 0x04},
++	{0x334b, 0x20},
++
++	//0804
++	{0x3222, 0x29},
++	{0x3901, 0x02},
++
++	//0808
++
++	//digital ctrl
++	{0x3f00, 0x07},		// bit[2] = 1
++	{0x3f04, 0x08},
++	{0x3f05, 0x74},		// hts - { 0x24
++
++	//0809
++	{0x330b, 0xc8},
++
++	//0817
++	{0x3306, 0x4a},
++	{0x330b, 0xca},
++	{0x3639, 0x09},
++
++	//manual DPC
++	{0x5780, 0xff},
++	{0x5781, 0x04},
++	{0x5785, 0x18},
++
++	//0822
++	{0x3039, 0x35},		//fps
++	{0x303a, 0x2e},
++	{0x3034, 0x05},
++	{0x3035, 0x2a},
++
++	{0x320c, 0x08},
++	{0x320d, 0xca},
++	{0x320e, 0x04},
++	{0x320f, 0xb0},
++
++	{0x3f04, 0x08},
++	{0x3f05, 0xa6},		// hts - { 0x24
++
++	{0x3235, 0x04},
++	{0x3236, 0xae},		// vts-2
++
++	//0825
++	{0x3313, 0x05},
++	{0x3678, 0x42},
++
++	//for AE control per frame
++	{0x3670, 0x00},
++	{0x3633, 0x42},
++
++	{0x3802, 0x00},
++
++	//20180126
++	{0x3677, 0x3f},
++	{0x3306, 0x44},		//20180126[3c },4a]
++	{0x330b, 0xca},		//20180126[c2 },d3]
++
++	//20180202
++	{0x3237, 0x08},
++	{0x3238, 0x9a},		//hts-0x30
++
++	//20180417
++	{0x3640, 0x01},
++	{0x3641, 0x02},
++
++	{0x3301, 0x12},		//[8 },15]20180126
++	{0x3631, 0x84},
++	{0x366f, 0x2f},
++	{0x3622, 0xc6},		//20180117
++	{0x0100, 0x01},
++	//{ 0x4501, 0xc8 },	//bar testing
++	//{ 0x3902, 0x45 },
++	{SC2235_REG_END, 0x00},
++};
++
++int sc2235_read(struct i2c_client *client, uint16_t reg, unsigned char *value)
++{
++	int ret;
++	unsigned char buf[2] = { reg >> 8, reg & 0xff };
++	struct i2c_msg msg[2] = {
++		[0] = {
++		       .addr = client->addr,
++		       .flags = 0,
++		       .len = 2,
++		       .buf = buf,
++		       },
++		[1] = {
++		       .addr = client->addr,
++		       .flags = I2C_M_RD,
++		       .len = 1,
++		       .buf = value,
++		       }
++	};
++
++	ret = i2c_transfer(client->adapter, msg, 2);
++	if (ret > 0)
++		ret = 0;
++
++	return ret;
++}
++
++int sc2235_write(struct i2c_client *client, uint16_t reg, unsigned char value)
++{
++	int ret;
++	uint8_t buf[3] = { (reg >> 8) & 0xff, reg & 0xff, value };
++	struct i2c_msg msg = {
++		.addr = client->addr,
++		.flags = 0,
++		.len = 3,
++		.buf = buf,
++	};
++
++	ret = i2c_transfer(client->adapter, &msg, 1);
++	if (ret > 0)
++		ret = 0;
++
++	return ret;
++}
++
++static int sc2235_read_array(struct i2c_client *client,
++			     struct regval_list *vals)
++{
++	int ret;
++	unsigned char val;
++	while (vals->reg_num != SC2235_REG_END) {
++		if (vals->reg_num == SC2235_REG_DELAY) {
++			msleep(vals->value);
++		} else {
++			ret = sc2235_read(client, vals->reg_num, &val);
++			if (ret < 0)
++				return ret;
++		}
++		vals++;
++	}
++	return 0;
++}
++
++static int sc2235_write_array(struct i2c_client *client,
++			      struct regval_list *vals)
++{
++	int ret;
++	while (vals->reg_num != SC2235_REG_END) {
++		if (vals->reg_num == SC2235_REG_DELAY) {
++			msleep(vals->value);
++		} else {
++			ret = sc2235_write(client, vals->reg_num, vals->value);
++			if (ret < 0)
++				return ret;
++		}
++		vals++;
++	}
++	return 0;
++}
++
++
++/*
++ *  sc2235 chip detect
++ *
++ *  @return   0: success, others: fail
++ *
++ */
++static int sc2235_detect(struct i2c_client *client, unsigned int *ident)
++{
++	int ret;
++	unsigned char v;
++
++	ret = sc2235_read(client, 0x3107, &v);
++	if (ret < 0)
++		return ret;
++	if (v != SC2235_CHIP_ID_H)
++		return -ENODEV;
++	*ident = v;
++
++	ret = sc2235_read(client, 0x3108, &v);
++	if (ret < 0)
++		return ret;
++
++	if (v != SC2235_CHIP_ID_L)
++		return -ENODEV;
++
++	*ident = (*ident << 8) | v;
++	return 0;
++}
++
++static int sc2235_probe(struct i2c_client *client,
++			const struct i2c_device_id *id)
++{
++	int ret;
++	unsigned int chipid;
++	dev_info(&client->dev, "sc2235_probe enter\n");
++
++	ret = sc2235_detect(client, &chipid);
++	if (ret < 0) {
++		dev_err(&client->dev, "cannot detect sc2235 chip\n");
++		return -ENODEV;
++	}
++
++	dev_info(&client->dev, "sc2235 id = 0x%x\n", chipid);
++
++	ret = sc2235_write_array(client, sc2235_init_regs_tbl_1080);
++	if (ret < 0) {
++		dev_err(&client->dev, " sc2235 init failed\n");
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int sc2235_remove(struct i2c_client *client)
++{
++	return 0;
++}
++
++static const struct i2c_device_id sc2235_id[] = {
++	{"sc2235", 0},
++	{}
++};
++
++static const struct of_device_id sc2235_sensor_dt_ids[] = {
++	{.compatible = "sc2235",},
++	{ /* sentinel */ }
++};
++
++MODULE_DEVICE_TABLE(of, sc2235_sensor_dt_ids);
++
++static struct i2c_driver sc2235_driver = {
++	.driver = {
++		   .owner = THIS_MODULE,
++		   .name = "sc2235",
++		   .of_match_table = sc2235_sensor_dt_ids,
++		   },
++	.probe = sc2235_probe,
++	.remove = sc2235_remove,
++	.id_table = sc2235_id,
++};
++
++//module_i2c_driver(sc2235_driver);
++static __init int init_sc2235(void)
++{
++    int err;
++
++	err = i2c_add_driver(&sc2235_driver);
++    if (err != 0)
++		printk("i2c driver registration failed, error=%d\n", err);
++
++	return err;
++}
++
++static __exit void exit_sc2235(void)
++{
++	i2c_del_driver(&sc2235_driver);
++}
++
++fs_initcall(init_sc2235);
++module_exit(exit_sc2235);
++
++MODULE_DESCRIPTION("A low-level driver for SmartSens sc2235 sensors");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/media/platform/starfive/stf_isp.c b/drivers/media/platform/starfive/stf_isp.c
+index 77cf7995a495..67da513cdffd 100644
+--- a/drivers/media/platform/starfive/stf_isp.c
++++ b/drivers/media/platform/starfive/stf_isp.c
+@@ -43,7 +43,6 @@ void isp_ddr_format_config(struct stf_vin_dev *vin)
+ 		pr_err("unknown format\n");
+ 		return;
+ 	}
+-	
+ 	reg_write(vin->base_isp, ISP_REG_RAW_FORMAT_CFG, 0x000011BB);	// sym_order = [0+:16]
+ 	reg_write(vin->base_isp, ISP_REG_CFA_MODE, 0x00000030);
+ 	reg_write(vin->base_isp, ISP_REG_PIC_CAPTURE_START_CFG, 0x00000000); // cro_hstart = [0+:16], cro_vstart = [16+:16]
+@@ -64,9 +63,10 @@ void isp_ddr_resolution_config(struct stf_vin_dev *vin)
+ 	reg_write(vin->base_isp, ISP_REG_STRIDE, vin->frame.width);	// Unscaled Output Image Stride Register
+ 
+ 	reg_write(vin->base_isp, ISP_REG_PIXEL_COORDINATE_GEN, 0x00000010);	// Unscaled Output Pixel Coordinate Generator Mode Register
+-	reg_write(vin->base_isp, ISP_REG_PIXEL_AXI_CONTROL, 0x00000000);	
+-	reg_write(vin->base_isp, ISP_REG_SS_AXI_CONTROL, 0x00000000);
+ 	
++	reg_write(vin->base_isp, ISP_REG_PIXEL_AXI_CONTROL, 0x00000000);
++	reg_write(vin->base_isp, ISP_REG_SS_AXI_CONTROL, 0x00000000);
++
+ 	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION0, 0x0000004D);	// ICCONV_0
+ 	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION1, 0x00000096);	// ICCONV_1
+ 	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION2, 0x0000001D);	// ICCONV_2
+@@ -77,8 +77,8 @@ void isp_ddr_resolution_config(struct stf_vin_dev *vin)
+ 	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION7, 0x0000017C);	// ICCONV_7
+ 	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION8, 0x000001E6);	// ICCONV_8
+ 	
+-	reg_write(vin->base_isp, ISP_REG_CIS_MODULE_CFG, 0x00000000);	
+-	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_1, 0x10000022);	//0x30000022);//	
++	reg_write(vin->base_isp, ISP_REG_CIS_MODULE_CFG, 0x00000000);
++	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_1, 0x10000022);	//0x30000022);//
+ 	reg_write(vin->base_isp, ISP_REG_DC_AXI_ID, 0x00000000);
+ 	reg_write(vin->base_isp, 0x00000008, 0x00010005);//this reg can not be found in document
+ }
+diff --git a/drivers/media/platform/starfive/stf_isp.h b/drivers/media/platform/starfive/stf_isp.h
+index 91dba96f57bb..6fc8cafd4777 100644
+--- a/drivers/media/platform/starfive/stf_isp.h
++++ b/drivers/media/platform/starfive/stf_isp.h
+@@ -14,4 +14,3 @@ extern void isp_ddr_config(struct stf_vin_dev *vin);
+ extern void isp_base_addr_config(struct stf_vin_dev *vin);
+ 
+ #endif
+-
+diff --git a/drivers/media/platform/starfive/stf_vin.c b/drivers/media/platform/starfive/stf_vin.c
+index cb161c349514..6fe19d20376a 100644
+--- a/drivers/media/platform/starfive/stf_vin.c
++++ b/drivers/media/platform/starfive/stf_vin.c
+@@ -51,7 +51,7 @@ static inline void reg_clear(void __iomem * base, u32 reg, u32 mask)
+ {
+ 	reg_write(base, reg, reg_read(base, reg) & ~mask);
+ }
+-	
++
+ static void reg_set_highest_bit(void __iomem * base, u32 reg)
+ {
+     u32 val;
+@@ -74,7 +74,7 @@ static int vin_open(struct inode *inode, struct file *file)
+ {
+ 	int ret = 0;
+ 	mutex_lock(&vin_mutex);
+-	
++
+ 	struct stf_vin_dev *dev;
+ 	dev=container_of(inode->i_cdev, struct stf_vin_dev, vin_cdev);
+ 
+@@ -356,7 +356,7 @@ static int stf_vin_config_set(struct stf_vin_dev *vin)
+ 		val_vin_rw_ctrl_reg = 0x00010300;
+ 		val_vin_src_channel_reg = 0x00000088;
+ 		val_vin_axi_ctrl_reg = 0x00000004;
+-		
++
+ 		reg_write(sysctrl_base, SYSCTRL_REG13, val_vin_rd_pix_total_reg);
+ 		reg_write(sysctrl_base, SYSCTRL_REG17, val_vin_rd_vblank_reg);
+ 		reg_write(sysctrl_base, SYSCTRL_REG18, val_vin_rd_vend_reg);
+@@ -432,7 +432,7 @@ static int vin_get_axiwr_pixel_size(struct stf_vin_dev *vin)
+ 	int cnfg_axiwr_pix_ct;
+ 
+ 	value = reg_read(sysctrl_base, SYSCTRL_REG14) & 0x3;
+-	
++
+ 	if (value == 0)
+ 		cnfg_axiwr_pix_ct = 2;
+ 	else if (value == 1)
+@@ -515,7 +515,7 @@ static irqreturn_t vin_wr_irq_handler(int irq, void *priv)
+ 	vin->odd = wtimes;
+ 	wake_up_interruptible(&vin->wq);
+ 	wtimes++;
+-	
++
+ 	return IRQ_HANDLED;
+ }
+ 
+@@ -751,7 +751,7 @@ static int __init stf_vin_init(void)
+ }
+ 
+ static void __exit stf_vin_cleanup(void)
+-{	
++{
+ 	platform_driver_unregister(&stf_vin_driver);
+ }
+ 
+-- 
+2.30.0
+

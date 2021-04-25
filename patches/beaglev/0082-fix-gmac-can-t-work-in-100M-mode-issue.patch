@@ -1,0 +1,198 @@
+From 5cf304059d0c9b7ee63dbaf9497ff71a089c25e4 Mon Sep 17 00:00:00 2001
+From: "yanhong.wang" <yanhong.wang@starfivetech.com>
+Date: Thu, 18 Mar 2021 16:30:21 +0800
+Subject: [PATCH 82/86] fix gmac can't work in 100M mode issue
+
+---
+ .../ethernet/stmicro/stmmac/dwmac-generic.c   | 38 +++++++++++++++++
+ .../net/ethernet/stmicro/stmmac/stmmac_main.c | 28 -------------
+ drivers/net/phy/micrel.c                      | 42 +++++++++++++++++++
+ 3 files changed, 80 insertions(+), 28 deletions(-)
+ mode change 100644 => 100755 drivers/net/ethernet/stmicro/stmmac/dwmac-generic.c
+ mode change 100644 => 100755 drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+ mode change 100644 => 100755 drivers/net/phy/micrel.c
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-generic.c b/drivers/net/ethernet/stmicro/stmmac/dwmac-generic.c
+old mode 100644
+new mode 100755
+index fad503820e04..aeea2d304dc8
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac-generic.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-generic.c
+@@ -16,6 +16,41 @@
+ #include "stmmac.h"
+ #include "stmmac_platform.h"
+ 
++#ifdef CONFIG_SOC_STARFIVE_VIC7100
++static void dwmac_fixed_speed(void *priv, unsigned int speed)
++{
++	u32	value;
++	void	*addr;
++
++	addr = ioremap(0x118001ec, 0x4);
++	value = readl(addr);
++	value &= ~(0xFF);
++
++	switch (speed) {
++		case SPEED_1000:
++			value |= 0x4;
++			break;
++		case SPEED_100:
++			value |= 0x14;
++			break;
++		case SPEED_10:
++			value |= 0xc8;
++			break;
++		default:
++			iounmap(addr);
++			return;
++	}
++
++	/*0x118001ec地址为mac的时钟分频寄存器，低8位为分频值
++	*mac的root时钟为500M,gtxclk需求的时钟如下：
++	*1000M: gtxclk为125M，分频值为500/125=0x4
++	*100M: gtxclk为25M，分频值为500/25=0x14
++	*10M:gtxclk为2.5M，分频值为500/2.5=0xc8*/
++	writel(value, addr); /*set gmac gtxclk*/
++	iounmap(addr);
++}
++#endif
++
+ static int dwmac_generic_probe(struct platform_device *pdev)
+ {
+ 	struct plat_stmmacenet_data *plat_dat;
+@@ -52,6 +87,9 @@ static int dwmac_generic_probe(struct platform_device *pdev)
+ 		if (ret)
+ 			goto err_remove_config_dt;
+ 	}
++#ifdef CONFIG_SOC_STARFIVE_VIC7100
++	plat_dat->fix_mac_speed = dwmac_fixed_speed;
++#endif
+ 
+ 	ret = stmmac_dvr_probe(&pdev->dev, plat_dat, &stmmac_res);
+ 	if (ret)
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+old mode 100644
+new mode 100755
+index 55512580e165..8057dab3ee4e
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -932,10 +932,6 @@ static void stmmac_mac_link_up(struct phylink_config *config,
+ {
+ 	struct stmmac_priv *priv = netdev_priv(to_net_dev(config->dev));
+ 	u32 ctrl;
+-#ifdef CONFIG_SOC_STARFIVE_VIC7100
+-	u32	value;
+-	void	*addr;
+-#endif
+ 
+ 	stmmac_xpcs_link_up(priv, &priv->hw->xpcs_args, speed, interface);
+ 
+@@ -983,32 +979,18 @@ static void stmmac_mac_link_up(struct phylink_config *config,
+ 			return;
+ 		}
+ 	} else {
+-#ifdef CONFIG_SOC_STARFIVE_VIC7100
+-		addr = ioremap(0x118001ec, 0x4);
+-		value = readl(addr);
+-		value &= ~(0xFF);
+-#endif
+ 		switch (speed) {
+ 		case SPEED_2500:
+ 			ctrl |= priv->hw->link.speed2500;
+ 			break;
+ 		case SPEED_1000:
+ 			ctrl |= priv->hw->link.speed1000;
+-#ifdef CONFIG_SOC_STARFIVE_VIC7100
+-			value |= 0x4;
+-#endif
+ 			break;
+ 		case SPEED_100:
+ 			ctrl |= priv->hw->link.speed100;
+-#ifdef CONFIG_SOC_STARFIVE_VIC7100
+-			value |= 0x14;
+-#endif
+ 			break;
+ 		case SPEED_10:
+ 			ctrl |= priv->hw->link.speed10;
+-#ifdef CONFIG_SOC_STARFIVE_VIC7100
+-			value |= 0xc8;
+-#endif
+ 			break;
+ 		default:
+ 			return;
+@@ -1016,17 +998,7 @@ static void stmmac_mac_link_up(struct phylink_config *config,
+ 	}
+ 
+ 	priv->speed = speed;
+-
+ 	if (priv->plat->fix_mac_speed) {
+-#ifdef CONFIG_SOC_STARFIVE_VIC7100
+-		/*0x118001ec地址为mac的时钟分频寄存器，低8位为分频值
+-		 *mac的root时钟为500M,gtxclk需求的时钟如下：
+-		 *1000M: gtxclk为125M，分频值为500/125=0x4
+-		 *100M: gtxclk为25M，分频值为500/25=0x14
+-		 *10M:gtxclk为2.5M，分频值为500/2.5=0xc8*/
+-		writel(value, addr); /*set gmac gtxclk*/
+-		iounmap(addr);
+-#endif
+ 		priv->plat->fix_mac_speed(priv->plat->bsp_priv, speed);
+ 	}
+ 
+diff --git a/drivers/net/phy/micrel.c b/drivers/net/phy/micrel.c
+old mode 100644
+new mode 100755
+index a7f74b3b97af..a034cc8b1cd7
+--- a/drivers/net/phy/micrel.c
++++ b/drivers/net/phy/micrel.c
+@@ -758,6 +758,48 @@ static int ksz9031_config_init(struct phy_device *phydev)
+ 				goto err_force_master;
+ 		}
+ 	}
++#if defined(CONFIG_FPGA_GMAC_SPEED10)
++	/* set to 10M
++	bit [6, 13]
++		[1,1] = Reserved
++		[1,0] = 1000 Mbps
++		[0,1] = 100 Mbps
++		[0,0] = 10 Mbps
++	*/
++	result = phy_read(phydev, MII_BMCR);
++	result &=~(BIT(6)|BIT(13));
++	result = phy_write(phydev, MII_BMCR, result);
++	if (result < 0)
++		goto err_force_master;
++
++	/* remove Auto-Negotiation advertisements for 1000 Mbps full-/half-duplex*/
++	result = phy_read(phydev, MII_CTRL1000);
++	result &=~(BIT(8)|BIT(9));
++	result = phy_write(phydev, MII_CTRL1000, result);
++	if (result < 0)
++		goto err_force_master;
++#elif defined(CONFIG_FPGA_GMAC_SPEED100)
++	/* set to 100M
++	bit	[6, 13]
++		[1,1] = Reserved
++		[1,0] = 1000 Mbps
++		[0,1] = 100 Mbps
++		[0,0] = 10 Mbps
++	*/
++	result = phy_read(phydev, MII_BMCR);
++	result &=~BIT(6);
++	result |=BIT(13);
++	result = phy_write(phydev, MII_BMCR, result);
++	if (result < 0)
++		goto err_force_master;
++
++	/* remove Auto-Negotiation advertisements for 1000 Mbps full-/half-duplex*/
++	result = phy_read(phydev, MII_CTRL1000);
++	result &=~(BIT(8)|BIT(9));
++	result = phy_write(phydev, MII_CTRL1000, result);
++	if (result < 0)
++		goto err_force_master;
++#endif
+ 
+ 	return ksz9031_center_flp_timing(phydev);
+ 
+-- 
+2.30.0
+

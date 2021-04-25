@@ -32,7 +32,7 @@ git_bin=$(which git)
 #git hard requirements:
 #git: --no-edit
 
-git="${git_bin} am"
+git="${git_bin} am --3way --whitespace=fix"
 #git_patchset=""
 #git_opts
 
@@ -281,6 +281,14 @@ reverts () {
 	fi
 }
 
+beaglev () {
+	echo "dir: beaglev (sft-riscv-linux-5.10,starfive branch)"
+	PATCHES=$(find "${DIR}/patches/beaglev/" -name \*.patch | sort)
+	for patch in "$PATCHES"; do
+		${git} $patch
+	done
+}
+
 #drivers () {
 #
 #}
@@ -294,6 +302,7 @@ reverts () {
 #reverts
 #drivers
 #soc
+beaglev
 
 packaging () {
 	#do_backport="enable"

@@ -1,0 +1,33 @@
+From afd2532a5edc9e368e32dce783377e3a9a9c782d Mon Sep 17 00:00:00 2001
+From: "Huan.Feng" <huan.feng@starfivetech.com>
+Date: Fri, 2 Apr 2021 13:46:25 +0800
+Subject: [PATCH 85/86] deal with that there is 'L2CACHE: flush64 out of
+ range:' message when enable uas
+
+---
+ include/linux/usb.h | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/usb.h b/include/linux/usb.h
+index 91477daef4a9..a147d4fb2ef6 100644
+--- a/include/linux/usb.h
++++ b/include/linux/usb.h
+@@ -1676,7 +1676,14 @@ static inline void usb_fill_bulk_urb(struct urb *urb,
+ 	urb->complete = complete_fn;
+ 	urb->context = context;
+ #ifdef CONFIG_USB_CDNS3_HOST_FLUSH_DMA
+-	cdns_virt_flush_dcache(transfer_buffer, buffer_length);
++	{
++		unsigned long start = dw_virt_to_phys(transfer_buffer);
++		
++		if(!(start < CONFIG_SIFIVE_L2_FLUSH_START ||
++		     (start + buffer_length) > (CONFIG_SIFIVE_L2_FLUSH_START +
++				      CONFIG_SIFIVE_L2_FLUSH_SIZE)))
++			cdns_virt_flush_dcache(transfer_buffer, buffer_length);
++	}
+ #endif
+ }
+ 
+-- 
+2.30.0
+

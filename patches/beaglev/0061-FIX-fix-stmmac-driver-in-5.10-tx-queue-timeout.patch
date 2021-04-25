@@ -1,0 +1,26 @@
+From d3faa743119cc18dd925e96a65685051f634a9df Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Sun, 21 Feb 2021 09:51:26 +0800
+Subject: [PATCH 61/86] [FIX] fix stmmac driver in 5.10 tx queue timeout.
+
+---
+ drivers/net/ethernet/stmicro/stmmac/stmmac_main.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+index d2fa6436bab2..55512580e165 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -3736,9 +3736,6 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	else
+ 		desc_size = sizeof(struct dma_desc);
+ 
+-	entry = STMMAC_GET_ENTRY(entry, DMA_DEFAULT_TX_SIZE);
+-	tx_q->cur_tx = entry;
+-
+ 	tx_q->tx_tail_addr = tx_q->dma_tx_phy + (tx_q->cur_tx * desc_size);
+ 	stmmac_set_tx_tail_ptr(priv, priv->ioaddr, tx_q->tx_tail_addr, queue);
+ 	stmmac_tx_timer_arm(priv, queue);
+-- 
+2.30.0
+

@@ -1,0 +1,25 @@
+From b181cbe696a2afc8f958f21834bb5e3e935f149d Mon Sep 17 00:00:00 2001
+From: "Huan.Feng" <huan.feng@starfivetech.com>
+Date: Thu, 18 Mar 2021 14:30:22 +0800
+Subject: [PATCH 81/86] We cannot select PM when selecting bcmdhd module, which
+ will make usb3.0 hub faild
+
+---
+ drivers/net/wireless/broadcom/bcmdhd/Kconfig | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/net/wireless/broadcom/bcmdhd/Kconfig b/drivers/net/wireless/broadcom/bcmdhd/Kconfig
+index 114a50323502..fffcee2004d8 100644
+--- a/drivers/net/wireless/broadcom/bcmdhd/Kconfig
++++ b/drivers/net/wireless/broadcom/bcmdhd/Kconfig
+@@ -1,7 +1,5 @@
+ config BCMDHD
+ 	tristate "Broadcom FullMAC wireless cards support"
+-    select HIBERNATE_CALLBACKS
+-    select PM_SLEEP 
+ 	help
+ 	  This module adds support for wireless adapters based on
+ 	  Broadcom FullMAC chipset.
+-- 
+2.30.0
+

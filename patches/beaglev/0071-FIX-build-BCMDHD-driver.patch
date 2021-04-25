@@ -1,0 +1,300 @@
+From 4ec3b2237cbaf1295dd8df742203c794b341553c Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Sat, 20 Feb 2021 19:35:56 +0800
+Subject: [PATCH 71/86] [FIX] build BCMDHD driver.
+
+---
+ drivers/net/wireless/broadcom/bcmdhd/Kconfig  |  3 +-
+ .../net/wireless/broadcom/bcmdhd/dhd_linux.c  | 95 ++++++++++++-------
+ .../broadcom/bcmdhd/dhd_linux_sched.c         |  6 +-
+ .../net/wireless/broadcom/bcmdhd/dhd_pno.c    |  4 +-
+ .../wireless/broadcom/bcmdhd/wl_cfg80211.c    | 14 ++-
+ drivers/net/wireless/broadcom/bcmdhd/wl_iw.c  |  3 -
+ 6 files changed, 76 insertions(+), 49 deletions(-)
+
+diff --git a/drivers/net/wireless/broadcom/bcmdhd/Kconfig b/drivers/net/wireless/broadcom/bcmdhd/Kconfig
+index ec992ef39eaf..114a50323502 100644
+--- a/drivers/net/wireless/broadcom/bcmdhd/Kconfig
++++ b/drivers/net/wireless/broadcom/bcmdhd/Kconfig
+@@ -1,5 +1,7 @@
+ config BCMDHD
+ 	tristate "Broadcom FullMAC wireless cards support"
++    select HIBERNATE_CALLBACKS
++    select PM_SLEEP 
+ 	help
+ 	  This module adds support for wireless adapters based on
+ 	  Broadcom FullMAC chipset.
+@@ -50,7 +52,6 @@ choice
+ config BCMDHD_OOB
+ 	depends on BCMDHD && BCMDHD_SDIO
+ 	bool "Out-of-Band Interrupt"
+-	default y
+ 	help
+ 		Interrupt from WL_HOST_WAKE.
+ config BCMDHD_SDIO_IRQ
+diff --git a/drivers/net/wireless/broadcom/bcmdhd/dhd_linux.c b/drivers/net/wireless/broadcom/bcmdhd/dhd_linux.c
+index 793f1438d6b2..c47aaabb098d 100644
+--- a/drivers/net/wireless/broadcom/bcmdhd/dhd_linux.c
++++ b/drivers/net/wireless/broadcom/bcmdhd/dhd_linux.c
+@@ -15565,16 +15565,26 @@ dhd_wait_pend8021x(struct net_device *dev)
+ 	return pend;
+ }
+ 
++static inline int warn_unsupported(struct file *file, const char *op)
++{
++	pr_warn_ratelimited(
++		"kernel %s not supported for file %pD4 (pid: %d comm: %.20s)\n",
++		op, file, current->pid, current->comm);
++	return -EINVAL;
++}
++
+ #if defined(DHD_DEBUG)
+ int write_file(const char * file_name, uint32 flags, uint8 *buf, int size)
+ {
+ 	int ret = 0;
+ 	struct file *fp = NULL;
+-	mm_segment_t old_fs;
+ 	loff_t pos = 0;
+-	/* change to KERNEL_DS address limit */
+-	old_fs = get_fs();
+-	set_fs(KERNEL_DS);
++	struct kvec iov = {
++		.iov_base	= (void *)buf,
++		.iov_len	= min_t(size_t, size, MAX_RW_COUNT),
++	};
++	struct kiocb kiocb;
++	struct iov_iter iter;
+ 
+ 	/* open file to write */
+ 	fp = filp_open(file_name, flags, 0664);
+@@ -15583,8 +15593,16 @@ int write_file(const char * file_name, uint32 flags, uint8 *buf, int size)
+ 		goto exit;
+ 	}
+ 
++	if (unlikely(!fp->f_op->write_iter || fp->f_op->write)) {
++		ret = warn_unsupported(fp, "write");
++		goto exit;
++	}
++
+ 	/* Write buf to file */
+-	ret = compat_vfs_write(fp, buf, size, &pos);
++	init_sync_kiocb(&kiocb, fp);
++	kiocb.ki_pos = pos;
++	iov_iter_kvec(&iter, WRITE, &iov, 1, iov.iov_len);
++	ret = fp->f_op->write_iter(&kiocb, &iter);
+ 	if (ret < 0) {
+ 		DHD_ERROR(("write file error, err = %d\n", ret));
+ 		goto exit;
+@@ -15603,9 +15621,6 @@ int write_file(const char * file_name, uint32 flags, uint8 *buf, int size)
+ 	if (!IS_ERR(fp))
+ 		filp_close(fp, current->files);
+ 
+-	/* restore previous address limit */
+-	set_fs(old_fs);
+-
+ 	return ret;
+ }
+ #endif // endif
+@@ -20036,13 +20051,14 @@ int
+ dhd_write_file(const char *filepath, char *buf, int buf_len)
+ {
+ 	struct file *fp = NULL;
+-	mm_segment_t old_fs;
++	struct kvec iov = {
++		.iov_base	= (void *)buf,
++		.iov_len	= min_t(size_t, buf_len, MAX_RW_COUNT),
++        };
++	struct kiocb kiocb;
++	struct iov_iter iter;
+ 	int ret = 0;
+ 
+-	/* change to KERNEL_DS address limit */
+-	old_fs = get_fs();
+-	set_fs(KERNEL_DS);
+-
+ 	/* File is always created. */
+ 	fp = filp_open(filepath, O_RDWR | O_CREAT, 0664);
+ 	if (IS_ERR(fp)) {
+@@ -20050,22 +20066,26 @@ dhd_write_file(const char *filepath, char *buf, int buf_len)
+ 			__FUNCTION__, filepath, PTR_ERR(fp)));
+ 		ret = BCME_ERROR;
+ 	} else {
+-		if (fp->f_mode & FMODE_WRITE) {
+-			ret = compat_vfs_write(fp, buf, buf_len, &fp->f_pos);
+-			if (ret < 0) {
+-				DHD_ERROR(("%s: Couldn't write file '%s'\n",
+-					__FUNCTION__, filepath));
+-				ret = BCME_ERROR;
+-			} else {
+-				ret = BCME_OK;
++		if (unlikely(!fp->f_op->write_iter || fp->f_op->write)) {
++			ret = warn_unsupported(fp, "write");
++		} else {
++			if (fp->f_mode & FMODE_WRITE) {
++				init_sync_kiocb(&kiocb, fp);
++				kiocb.ki_pos = fp->f_pos;
++				iov_iter_kvec(&iter, WRITE, &iov, 1, iov.iov_len);
++				ret = fp->f_op->write_iter(&kiocb, &iter);
++				if (ret < 0) {
++					DHD_ERROR(("%s: Couldn't write file '%s'\n",
++						__FUNCTION__, filepath));
++					ret = BCME_ERROR;
++				} else {
++					ret = BCME_OK;
++				}
+ 			}
+ 		}
+ 		filp_close(fp, NULL);
+ 	}
+ 
+-	/* restore previous address limit */
+-	set_fs(old_fs);
+-
+ 	return ret;
+ }
+ 
+@@ -20073,25 +20093,28 @@ int
+ dhd_read_file(const char *filepath, char *buf, int buf_len)
+ {
+ 	struct file *fp = NULL;
+-	mm_segment_t old_fs;
++	struct kvec iov = {
++		.iov_base	= (void *)buf,
++		.iov_len	= min_t(size_t, buf_len, MAX_RW_COUNT),
++        };
++	struct kiocb kiocb;
++	struct iov_iter iter;
+ 	int ret;
+ 
+-	/* change to KERNEL_DS address limit */
+-	old_fs = get_fs();
+-	set_fs(KERNEL_DS);
+-
+ 	fp = filp_open(filepath, O_RDONLY, 0);
+ 	if (IS_ERR(fp)) {
+-		set_fs(old_fs);
+ 		DHD_ERROR(("%s: File %s doesn't exist\n", __FUNCTION__, filepath));
+ 		return BCME_ERROR;
+ 	}
+ 
+-	ret = compat_kernel_read(fp, 0, buf, buf_len);
+-	filp_close(fp, NULL);
+-
+-	/* restore previous address limit */
+-	set_fs(old_fs);
++        if (unlikely(!fp->f_op->read_iter || fp->f_op->read)) {
++		ret = warn_unsupported(fp, "read");
++	} else {
++          init_sync_kiocb(&kiocb, fp);
++          kiocb.ki_pos = fp->f_pos;
++          iov_iter_kvec(&iter, READ, &iov, 1, iov.iov_len);
++          ret = fp->f_op->read_iter(&kiocb, &iter);
++	}
+ 
+ 	/* Return the number of bytes read */
+ 	if (ret > 0) {
+@@ -20103,6 +20126,8 @@ dhd_read_file(const char *filepath, char *buf, int buf_len)
+ 		ret = BCME_ERROR;
+ 	}
+ 
++	filp_close(fp, NULL);
++
+ 	return ret;
+ }
+ 
+diff --git a/drivers/net/wireless/broadcom/bcmdhd/dhd_linux_sched.c b/drivers/net/wireless/broadcom/bcmdhd/dhd_linux_sched.c
+index fb76b3f0c9e3..c342ab44453c 100644
+--- a/drivers/net/wireless/broadcom/bcmdhd/dhd_linux_sched.c
++++ b/drivers/net/wireless/broadcom/bcmdhd/dhd_linux_sched.c
+@@ -34,9 +34,9 @@
+ 
+ int setScheduler(struct task_struct *p, int policy, struct sched_param *param)
+ {
+-	int rc = 0;
+-	rc = sched_setscheduler(p, policy, param);
+-	return rc;
++	sched_set_fifo(p);
++
++	return 0;
+ }
+ 
+ int get_scheduler_policy(struct task_struct *p)
+diff --git a/drivers/net/wireless/broadcom/bcmdhd/dhd_pno.c b/drivers/net/wireless/broadcom/bcmdhd/dhd_pno.c
+index 6bb2fa4034c3..7812ad8c323a 100644
+--- a/drivers/net/wireless/broadcom/bcmdhd/dhd_pno.c
++++ b/drivers/net/wireless/broadcom/bcmdhd/dhd_pno.c
+@@ -3453,7 +3453,7 @@ _dhd_pno_get_for_batch(dhd_pub_t *dhd, char *buf, int bufsize, int reason)
+ 	}
+ 	mutex_unlock(&_pno_state->pno_mutex);
+ exit_no_unlock:
+-	if (waitqueue_active(&_pno_state->get_batch_done.wait))
++	if (swait_active(&_pno_state->get_batch_done.wait))
+ 		complete(&_pno_state->get_batch_done);
+ 	return err;
+ }
+@@ -4332,7 +4332,7 @@ dhd_pno_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data)
+ 	{
+ 		struct dhd_pno_batch_params *params_batch;
+ 		params_batch = &_pno_state->pno_params_arr[INDEX_OF_BATCH_PARAMS].params_batch;
+-		if (!waitqueue_active(&_pno_state->get_batch_done.wait)) {
++		if (!swait_active(&_pno_state->get_batch_done.wait)) {
+ 			DHD_PNO(("%s : WLC_E_PFN_BEST_BATCHING\n", __FUNCTION__));
+ 			params_batch->get_batch.buf = NULL;
+ 			params_batch->get_batch.bufsize = 0;
+diff --git a/drivers/net/wireless/broadcom/bcmdhd/wl_cfg80211.c b/drivers/net/wireless/broadcom/bcmdhd/wl_cfg80211.c
+index d7658b11b783..5922676b1742 100644
+--- a/drivers/net/wireless/broadcom/bcmdhd/wl_cfg80211.c
++++ b/drivers/net/wireless/broadcom/bcmdhd/wl_cfg80211.c
+@@ -9737,13 +9737,17 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
+ }
+ 
+ static void
+-wl_cfg80211_mgmt_frame_register(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
+-	u16 frame, bool reg)
++wl_cfg80211_update_mgmt_frame_registrations(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
++	struct mgmt_frame_regs *upd)
+ {
+ 
+-	WL_DBG(("frame_type: %x, reg: %d\n", frame, reg));
++	WL_DBG(("frame_type: %x, reg: %x,%x,%x\n",
++		upd->interface_stypes,
++		upd->global_stypes,
++		upd->global_mcast_stypes,
++		upd->interface_mcast_stypes));
+ 
+-	if (frame != (IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ))
++	if (upd->interface_stypes != (IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ))
+ 		return;
+ 
+ 	return;
+@@ -12716,7 +12720,7 @@ static struct cfg80211_ops wl_cfg80211_ops = {
+ 	.remain_on_channel = wl_cfg80211_remain_on_channel,
+ 	.cancel_remain_on_channel = wl_cfg80211_cancel_remain_on_channel,
+ 	.mgmt_tx = wl_cfg80211_mgmt_tx,
+-	.mgmt_frame_register = wl_cfg80211_mgmt_frame_register,
++	.update_mgmt_frame_registrations = wl_cfg80211_update_mgmt_frame_registrations,
+ 	.change_bss = wl_cfg80211_change_bss,
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)) || defined(WL_COMPAT_WIRELESS)
+ 	.set_channel = wl_cfg80211_set_channel,
+diff --git a/drivers/net/wireless/broadcom/bcmdhd/wl_iw.c b/drivers/net/wireless/broadcom/bcmdhd/wl_iw.c
+index bfa462e3e0b5..fff87653f430 100644
+--- a/drivers/net/wireless/broadcom/bcmdhd/wl_iw.c
++++ b/drivers/net/wireless/broadcom/bcmdhd/wl_iw.c
+@@ -299,14 +299,11 @@ dev_wlc_ioctl(
+ 	ifr.ifr_name[sizeof(ifr.ifr_name) - 1] = '\0';
+ 	ifr.ifr_data = (caddr_t) &ioc;
+ 
+-	fs = get_fs();
+-	set_fs(get_ds());
+ #if defined(WL_USE_NETDEV_OPS)
+ 	ret = dev->netdev_ops->ndo_do_ioctl(dev, &ifr, SIOCDEVPRIVATE);
+ #else
+ 	ret = dev->do_ioctl(dev, &ifr, SIOCDEVPRIVATE);
+ #endif
+-	set_fs(fs);
+ 
+ 	return ret;
+ }
+-- 
+2.30.0
+

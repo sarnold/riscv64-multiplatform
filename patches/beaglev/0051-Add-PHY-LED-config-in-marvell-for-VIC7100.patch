@@ -1,0 +1,31 @@
+From cd89ee8254bb062290f06eae5b9c0ec46deea162 Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Fri, 8 Jan 2021 04:13:06 +0800
+Subject: [PATCH 51/86] Add PHY LED config in marvell for VIC7100.
+
+---
+ drivers/net/phy/marvell.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/net/phy/marvell.c b/drivers/net/phy/marvell.c
+index 0e39e4c2e5f1..bcaad9f91d60 100644
+--- a/drivers/net/phy/marvell.c
++++ b/drivers/net/phy/marvell.c
+@@ -699,6 +699,14 @@ static void marvell_config_led(struct phy_device *phydev)
+ 		return;
+ 	}
+ 
++#ifdef CONFIG_SOC_STARFIVE_VIC7100
++	/* Default PHY LED config:
++	 * LED[1] .. 0001,Link, Blink - Activity
++	 * LED[0] .. 0100,Blink - Activity
++	 */
++	def_config = 0x1014;
++#endif
++
+ 	err = phy_write_paged(phydev, MII_MARVELL_LED_PAGE, MII_PHY_LED_CTRL,
+ 			      def_config);
+ 	if (err < 0)
+-- 
+2.30.0
+

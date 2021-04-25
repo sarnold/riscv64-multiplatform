@@ -1,0 +1,33 @@
+From f26dc49799670af682dfcb01c42e8bcb4bb7d36d Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Fri, 8 Jan 2021 03:11:04 +0800
+Subject: [PATCH 46/86] Add serial 8250 improvment for VIC7100
+
+---
+ drivers/tty/serial/8250/8250_port.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/tty/serial/8250/8250_port.c b/drivers/tty/serial/8250/8250_port.c
+index b0af13074cd3..608bafb4bf6e 100644
+--- a/drivers/tty/serial/8250/8250_port.c
++++ b/drivers/tty/serial/8250/8250_port.c
+@@ -73,8 +73,16 @@ static const struct serial8250_config uart_config[] = {
+ 	},
+ 	[PORT_16550] = {
+ 		.name		= "16550",
++#ifdef CONFIG_SOC_STARFIVE_VIC7100
++		.fifo_size	= 16,
++		.tx_loadsz	= 16,
++		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_00,
++		.rxtrig_bytes	= {1, 4, 8, 14},
++		.flags		= UART_CAP_FIFO,
++#else
+ 		.fifo_size	= 1,
+ 		.tx_loadsz	= 1,
++#endif
+ 	},
+ 	[PORT_16550A] = {
+ 		.name		= "16550A",
+-- 
+2.30.0
+

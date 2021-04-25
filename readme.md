@@ -1,18 +1,18 @@
-This is just a set of scripts to rebuild a known working kernel for ARM devices.
+This is just a set of scripts to rebuild a known working kernel for riscv devices.
 
 Script Bugs: "robertcnelson+bugs@gmail.com"
 
 Note, for older git tag's please use: https://github.com/RobertCNelson/yakbuild
 
-Dependencies: GCC ARM Cross ToolChain
+Dependencies: GCC riscv Cross ToolChain
 
-Linaro:
-http://www.linaro.org/downloads/
+Linux kernel tools:
+https://mirrors.edge.kernel.org/pub/tools/crosstool/
 
 Dependencies: Linux Kernel Source
 
 This git repo contains just scripts/patches to build a specific kernel for some
-ARM devices. The kernel source will be downloaded when you run any of the build
+riscv devices. The kernel source will be downloaded when you run any of the build
 scripts.
 
 By default this script will clone the linux-stable tree:

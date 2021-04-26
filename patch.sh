@@ -289,6 +289,11 @@ beaglev () {
 	done
 }
 
+riscv () {
+	echo "dir: riscv"
+	${git} "${DIR}/patches/riscv/0001-arch-riscv-enable-pm_sleep-for-beaglev-bcmdhd-testin.patch"
+}
+
 #drivers () {
 #
 #}
@@ -302,6 +307,7 @@ beaglev () {
 #reverts
 #drivers
 #soc
+riscv
 beaglev
 
 packaging () {

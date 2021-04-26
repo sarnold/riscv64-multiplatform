@@ -1,7 +1,7 @@
-From faea069f16c554065969c8f68f6bc8be8e3e174d Mon Sep 17 00:00:00 2001
+From 65ca51241677a64444aa7f16a6e38b76da27bcbb Mon Sep 17 00:00:00 2001
 From: Peter Jones <pjones@redhat.com>
 Date: Mon, 2 Oct 2017 18:22:13 -0400
-Subject: [PATCH 14/86] Add efi_status_to_str() and rework efi_status_to_err().
+Subject: [PATCH 14/79] Add efi_status_to_str() and rework efi_status_to_err().
 
 This adds efi_status_to_str() for use when printing efi_status_t
 messages, and reworks efi_status_to_err() so that the two use a common

@@ -1,7 +1,7 @@
-From 3108f20fccb458f2ad17f0af4b992f13fc74e95c Mon Sep 17 00:00:00 2001
+From 085cb514d494d816cc4c9cef993249928409a3bd Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Mon, 11 Jan 2021 20:22:33 +0800
-Subject: [PATCH 62/86] Update Starfive VIC GPIO driver[v0.9->v1.0]
+Subject: [PATCH 62/79] Update Starfive VIC GPIO driver[v0.9->v1.0]
 
 This patch improves the module init and exit function to make sure that
 the driver can be initialized earlier than other drivers which need to

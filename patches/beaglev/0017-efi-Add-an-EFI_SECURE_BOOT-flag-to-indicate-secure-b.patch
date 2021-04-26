@@ -1,7 +1,7 @@
-From b550059a99381dfa3f65e722d082ed19c9d621f4 Mon Sep 17 00:00:00 2001
+From eceef447fd3a9c5de47a7ffdfa5fa16d028e7f70 Mon Sep 17 00:00:00 2001
 From: David Howells <dhowells@redhat.com>
 Date: Tue, 27 Feb 2018 10:04:55 +0000
-Subject: [PATCH 17/86] efi: Add an EFI_SECURE_BOOT flag to indicate secure
+Subject: [PATCH 17/79] efi: Add an EFI_SECURE_BOOT flag to indicate secure
  boot mode
 
 UEFI machines can be booted in Secure Boot mode.  Add an EFI_SECURE_BOOT

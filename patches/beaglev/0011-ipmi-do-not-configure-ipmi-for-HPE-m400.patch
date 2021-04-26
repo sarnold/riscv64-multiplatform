@@ -1,7 +1,7 @@
-From 85cc69acababbf94ce6439b136aa4682742ecc2f Mon Sep 17 00:00:00 2001
+From e723e7d7c149fd33b77d2152a9a66041d5fa6390 Mon Sep 17 00:00:00 2001
 From: Laura Abbott <labbott@redhat.com>
 Date: Sun, 10 Feb 2019 01:27:54 +0000
-Subject: [PATCH 11/86] ipmi: do not configure ipmi for HPE m400
+Subject: [PATCH 11/79] ipmi: do not configure ipmi for HPE m400
 
 Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1670017
 Brew: https://brewweb.engineering.redhat.com/brew/taskinfo?taskID=20147017

@@ -1,7 +1,7 @@
-From 3f7f951b2faac764e3d4e2292844e85719245547 Mon Sep 17 00:00:00 2001
+From 2c5d930eb133b698160811a85eaf83eb26bd843a Mon Sep 17 00:00:00 2001
 From: Peter Jones <pjones@redhat.com>
 Date: Mon, 2 Oct 2017 18:18:30 -0400
-Subject: [PATCH 15/86] Make get_cert_list() use efi_status_to_str() to print
+Subject: [PATCH 15/79] Make get_cert_list() use efi_status_to_str() to print
  error messages.
 
 Upstream Status: RHEL only

@@ -1,7 +1,7 @@
-From ff1ba2e873183aa836dcd2fe870d6418e393015a Mon Sep 17 00:00:00 2001
+From 4bb0aae12992b1ed3eea86dcbfa507ad83620c09 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 04:13:06 +0800
-Subject: [PATCH 50/86] Add phy operations according to the speed for VIC7100.
+Subject: [PATCH 50/79] Add phy operations according to the speed for VIC7100.
 
 ---
  drivers/net/phy/marvell.c    | 11 +++++++++++

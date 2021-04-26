@@ -1,7 +1,7 @@
-From 591694479f4d2378f4618e8094273f6fbcf5e17c Mon Sep 17 00:00:00 2001
+From fc9a91384c2782cdadea6448c5cfdbc89451c50d Mon Sep 17 00:00:00 2001
 From: Peter Robinson <pbrobinson@gmail.com>
 Date: Thu, 3 May 2012 20:27:11 +0100
-Subject: [PATCH 22/86] ARM: tegra: usb no reset
+Subject: [PATCH 22/79] ARM: tegra: usb no reset
 
 Patch for disconnect issues with storage attached to a
  tegra-ehci controller

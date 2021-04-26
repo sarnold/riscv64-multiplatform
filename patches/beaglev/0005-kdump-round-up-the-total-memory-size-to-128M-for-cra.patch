@@ -1,7 +1,7 @@
-From 1a3b847ad9d18d9c6216641c0e0213cd609a5163 Mon Sep 17 00:00:00 2001
+From 856a95f3d983b4aa8d3c779ecd812b224241e85f Mon Sep 17 00:00:00 2001
 From: Dave Young <dyoung@redhat.com>
 Date: Mon, 4 Jun 2018 01:38:25 -0400
-Subject: [PATCH 05/86] kdump: round up the total memory size to 128M for
+Subject: [PATCH 05/79] kdump: round up the total memory size to 128M for
  crashkernel reservation
 
 Message-id: <20180604013831.523644967@redhat.com>

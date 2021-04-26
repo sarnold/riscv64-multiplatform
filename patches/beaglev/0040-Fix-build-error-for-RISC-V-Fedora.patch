@@ -1,7 +1,7 @@
-From e5a97829200abe7f551471766b6be5560c6172b4 Mon Sep 17 00:00:00 2001
+From 38cb1a17d503463c700e2ba14d0bac70e0d0198e Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Thu, 3 Dec 2020 03:05:22 +0800
-Subject: [PATCH 40/86] Fix build error for RISC-V Fedora.
+Subject: [PATCH 40/79] Fix build error for RISC-V Fedora.
 
 ---
  security/keys/dh.c | 6 +++---

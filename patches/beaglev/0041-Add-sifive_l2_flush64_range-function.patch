@@ -1,7 +1,7 @@
-From 44a76604feb5b850f9102948bd1b26e5f58f3b0a Mon Sep 17 00:00:00 2001
+From 585eeb33a67dd4e36b9c3340bbf59e1900639bb0 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 02:54:51 +0800
-Subject: [PATCH 41/86] Add sifive_l2_flush64_range function
+Subject: [PATCH 41/79] Add sifive_l2_flush64_range function
 
 ---
  drivers/soc/sifive/Kconfig           | 15 ++++++++++

@@ -1,7 +1,7 @@
-From 84db61cfca167599377929ec08108f26e9035d79 Mon Sep 17 00:00:00 2001
+From 5ced1ca50e9343c1cb4f86a23d58071c381e00ef Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Mon, 11 Jan 2021 03:03:46 +0800
-Subject: [PATCH 59/86] Add StarFive VIC7100 EVB default config with net&usb
+Subject: [PATCH 59/79] Add StarFive VIC7100 EVB default config with net&usb
  enabled
 
 ---

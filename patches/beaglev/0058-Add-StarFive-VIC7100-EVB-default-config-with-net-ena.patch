@@ -1,7 +1,7 @@
-From 440a317b47cb099e5762ed706ac88f86b01208c5 Mon Sep 17 00:00:00 2001
+From b24837746366e04eb7dab58b039b1a62c7ad835f Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Sun, 10 Jan 2021 14:16:47 +0800
-Subject: [PATCH 58/86] Add StarFive VIC7100 EVB default config with net
+Subject: [PATCH 58/79] Add StarFive VIC7100 EVB default config with net
  enabled
 
 ---

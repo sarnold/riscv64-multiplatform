@@ -1,7 +1,7 @@
-From 48caa09479dcc5a12db6cfb9c2cce08c2bceb3f2 Mon Sep 17 00:00:00 2001
+From 42f2d58bddb929f5958cb0f43d6617466e3964ae Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Sun, 10 Jan 2021 14:14:37 +0800
-Subject: [PATCH 57/86] Add StarFive VIC7100 EVB minimal config file
+Subject: [PATCH 57/79] Add StarFive VIC7100 EVB minimal config file
 
 ---
  .../starfive_vic7100_evb_mini_sd_defconfig    | 2408 +++++++++++++++++

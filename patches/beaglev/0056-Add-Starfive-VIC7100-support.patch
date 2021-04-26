@@ -1,7 +1,7 @@
-From a389bf0d98670c5c9209f72a3be25ee575e78d97 Mon Sep 17 00:00:00 2001
+From 7470af0b772b2eecc40ab06e391dc6b39bca23a5 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 02:59:40 +0800
-Subject: [PATCH 56/86] Add Starfive VIC7100 support
+Subject: [PATCH 56/79] Add Starfive VIC7100 support
 
 ---
  arch/riscv/Kconfig.socs        | 58 ++++++++++++++++++++++++++++++++++

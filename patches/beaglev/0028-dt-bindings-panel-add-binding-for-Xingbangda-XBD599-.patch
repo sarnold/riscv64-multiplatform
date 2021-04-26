@@ -1,7 +1,7 @@
-From 87bda2eee0ae9b6d9185c79eec99d673db6e3ebc Mon Sep 17 00:00:00 2001
+From 2a8d121be2c4f0c7a942a824444324eed442e127 Mon Sep 17 00:00:00 2001
 From: Icenowy Zheng <icenowy@aosc.io>
 Date: Mon, 16 Mar 2020 21:35:00 +0800
-Subject: [PATCH 28/86] dt-bindings: panel: add binding for Xingbangda XBD599
+Subject: [PATCH 28/79] dt-bindings: panel: add binding for Xingbangda XBD599
  panel
 
 Xingbangda XBD599 is a 5.99" 720x1440 MIPI-DSI LCD panel.

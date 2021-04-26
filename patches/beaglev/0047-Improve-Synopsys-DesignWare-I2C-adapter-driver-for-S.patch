@@ -1,7 +1,7 @@
-From 42b50fd743933d7ec00310986791ae3c70287ff3 Mon Sep 17 00:00:00 2001
+From 587095d24c9957b4176c33cfd629346beb55de9e Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 03:25:24 +0800
-Subject: [PATCH 47/86] Improve Synopsys DesignWare I2C adapter driver for
+Subject: [PATCH 47/79] Improve Synopsys DesignWare I2C adapter driver for
  StarFive VIC7100
 
 ---

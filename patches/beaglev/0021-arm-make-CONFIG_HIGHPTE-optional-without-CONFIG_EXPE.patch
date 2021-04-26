@@ -1,7 +1,7 @@
-From 231b839f920136e8ac0bfe5aa7b4000d07aa3f52 Mon Sep 17 00:00:00 2001
+From 7549aa2398cb2855a5d9498a28bf55f06cf0fb77 Mon Sep 17 00:00:00 2001
 From: Jon Masters <jcm@redhat.com>
 Date: Thu, 18 Jul 2019 15:47:26 -0400
-Subject: [PATCH 21/86] arm: make CONFIG_HIGHPTE optional without CONFIG_EXPERT
+Subject: [PATCH 21/79] arm: make CONFIG_HIGHPTE optional without CONFIG_EXPERT
 
 We will use this to force CONFIG_HIGHPTE off on LPAE for now
 

@@ -1,7 +1,7 @@
-From 51eadba578e2552fcec5c1f75d558104c150939a Mon Sep 17 00:00:00 2001
+From fa2ee97cb1208b27395fa08e59a741bac2f4134e Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 03:35:42 +0800
-Subject: [PATCH 54/86] Add Starfive VIC Random Number Generator support
+Subject: [PATCH 54/79] Add Starfive VIC Random Number Generator support
 
 ---
  drivers/char/hw_random/Kconfig            |  13 ++

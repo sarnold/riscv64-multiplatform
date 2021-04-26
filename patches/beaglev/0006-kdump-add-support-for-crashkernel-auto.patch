@@ -1,7 +1,7 @@
-From c31251b6d72908dd97b993f5ae6b16a85f75befe Mon Sep 17 00:00:00 2001
+From 9262fb26fd76a8eb2e5c0fe05dd9f95277c11c86 Mon Sep 17 00:00:00 2001
 From: Jeremy Cline <jcline@redhat.com>
 Date: Tue, 23 Jul 2019 15:24:30 +0000
-Subject: [PATCH 06/86] kdump: add support for crashkernel=auto
+Subject: [PATCH 06/79] kdump: add support for crashkernel=auto
 
 Rebased for v5.3-rc1 because the documentation has moved.
 

@@ -1,7 +1,7 @@
-From e8f78072e8f8b300978c63b99572241149d5c13a Mon Sep 17 00:00:00 2001
+From 170c7b592caeb05e72cf68d91d1f82ab24b58f4a Mon Sep 17 00:00:00 2001
 From: Peter Robinson <pbrobinson@gmail.com>
 Date: Mon, 26 Oct 2020 17:01:57 +0000
-Subject: [PATCH 35/86] update phy on pine64 a64 devices
+Subject: [PATCH 35/79] update phy on pine64 a64 devices
 
 ---
  arch/arm64/boot/dts/allwinner/sun50i-a64-pine64.dts | 2 +-

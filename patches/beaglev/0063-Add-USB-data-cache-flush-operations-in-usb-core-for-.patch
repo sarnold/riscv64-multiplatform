@@ -1,7 +1,7 @@
-From 06d18cea3878ac141fa40ee7a5170d74a64be64c Mon Sep 17 00:00:00 2001
+From 28bb2519d1bfbe07908d46dc0861a2c479c12563 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Tue, 12 Jan 2021 01:53:03 +0800
-Subject: [PATCH 63/86] Add USB data cache flush operations in usb core for
+Subject: [PATCH 63/79] Add USB data cache flush operations in usb core for
  VIC7100
 
 ---

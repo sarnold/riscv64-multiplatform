@@ -1,7 +1,7 @@
-From a6d5794ab3cb7913513375bee46e23ce811dcfe8 Mon Sep 17 00:00:00 2001
+From 99b1c651eea9d60507769e325680645cfd772017 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 02:57:50 +0800
-Subject: [PATCH 43/86] Add dw-axi-dmac-starfive driver for VIC7100
+Subject: [PATCH 43/79] Add dw-axi-dmac-starfive driver for VIC7100
 
 ---
  drivers/dma/Kconfig                           |   7 +

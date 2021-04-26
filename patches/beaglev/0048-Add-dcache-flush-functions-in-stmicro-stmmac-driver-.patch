@@ -1,7 +1,7 @@
-From 2dd7c265ede4eaeb42474f772855e53bfb4f0fb9 Mon Sep 17 00:00:00 2001
+From 9151393c5aa0c049d3f09d863e0da05b1d30ad35 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 04:01:19 +0800
-Subject: [PATCH 48/86] Add dcache flush functions in stmicro stmmac driver for
+Subject: [PATCH 48/79] Add dcache flush functions in stmicro stmmac driver for
  VIC7100
 
 ---

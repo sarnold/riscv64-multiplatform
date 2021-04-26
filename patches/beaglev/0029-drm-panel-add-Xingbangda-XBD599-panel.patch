@@ -1,7 +1,7 @@
-From ec55cac8824f034eb7416caddcd0c24479245de1 Mon Sep 17 00:00:00 2001
+From 4b7be1e48274e34cb9515aa1330907579f1a1574 Mon Sep 17 00:00:00 2001
 From: Icenowy Zheng <icenowy@aosc.io>
 Date: Mon, 16 Mar 2020 21:35:01 +0800
-Subject: [PATCH 29/86] drm: panel: add Xingbangda XBD599 panel
+Subject: [PATCH 29/79] drm: panel: add Xingbangda XBD599 panel
 
 Xingbangda XBD599 is a 5.99" 720x1440 MIPI-DSI IPS LCD panel made by
 Xingbangda, which is used on PinePhone final assembled phones.

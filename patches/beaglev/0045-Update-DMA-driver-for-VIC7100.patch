@@ -1,7 +1,7 @@
-From 13096d185c176cbb8a6cfcb942c7bf9b00538e3c Mon Sep 17 00:00:00 2001
+From b0e974f75b6e6f8abfc8d4b7ba8435c7aa409ac3 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Thu, 7 Jan 2021 01:52:42 +0800
-Subject: [PATCH 45/86] Update DMA driver for VIC7100.
+Subject: [PATCH 45/79] Update DMA driver for VIC7100.
 
 ---
  .../dma/dw-axi-dmac/dw-axi-dmac-platform.c    | 103 +++++++++++++++---

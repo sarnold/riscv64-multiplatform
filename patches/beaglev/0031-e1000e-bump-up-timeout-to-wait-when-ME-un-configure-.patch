@@ -1,7 +1,7 @@
-From 102280108631facb4e0bdf71af3263cb6a1d05f8 Mon Sep 17 00:00:00 2001
+From 5b669a587fbd6d1a4c02f89eb5831b9d0c214804 Mon Sep 17 00:00:00 2001
 From: Aaron Ma <aaron.ma@canonical.com>
 Date: Tue, 24 Mar 2020 03:16:39 +0800
-Subject: [PATCH 31/86] e1000e: bump up timeout to wait when ME un-configure
+Subject: [PATCH 31/79] e1000e: bump up timeout to wait when ME un-configure
  ULP mode
 
 ME takes 2+ seconds to un-configure ULP mode done after resume

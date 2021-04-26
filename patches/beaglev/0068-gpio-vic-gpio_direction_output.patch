@@ -1,7 +1,7 @@
-From a5c7651a738c3734493302fdc1bc9bd4d92c75de Mon Sep 17 00:00:00 2001
+From c260c23fdc43fb17f6c85d9470b40806872070cf Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?=E5=B0=81=E6=AC=A2?= <huan.feng@starfivetech.com>
 Date: Tue, 26 Jan 2021 11:09:03 +0800
-Subject: [PATCH 68/86] =?UTF-8?q?=E4=BF=AE=E5=A4=8Dgpio-vic=E9=A9=B1?=
+Subject: [PATCH 68/79] =?UTF-8?q?=E4=BF=AE=E5=A4=8Dgpio-vic=E9=A9=B1?=
  =?UTF-8?q?=E5=8A=A8=E4=B8=AD=E7=9A=84gpio=5Fdirection=5Foutput=E6=8E=A5?=
  =?UTF-8?q?=E5=8F=A3=E5=AE=9E=E7=8E=B0?=
 MIME-Version: 1.0

@@ -1,7 +1,7 @@
-From c9e577388b1e7e27fee8881be253534cf45ea34b Mon Sep 17 00:00:00 2001
+From f42c32c6812cac51f9f8ad467cd4fe467b67ba5a Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 19:51:05 +0800
-Subject: [PATCH 55/86] Add USB data cache flush operations for VIC7100
+Subject: [PATCH 55/79] Add USB data cache flush operations for VIC7100
 
 This Patch also adds gpio api for getting current driver mode
 ---

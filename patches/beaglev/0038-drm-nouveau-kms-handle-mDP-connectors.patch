@@ -1,7 +1,7 @@
-From 870315be7b5857a19a284d64e4cfa5ac389de11c Mon Sep 17 00:00:00 2001
+From e4a0598369c9c7d70505701ffce1816e2b7ac644 Mon Sep 17 00:00:00 2001
 From: Karol Herbst <kherbst@redhat.com>
 Date: Thu, 26 Nov 2020 14:47:50 +0100
-Subject: [PATCH 38/86] drm/nouveau/kms: handle mDP connectors
+Subject: [PATCH 38/79] drm/nouveau/kms: handle mDP connectors
 
 In some cases we have the handle those explicitly as the fallback
 connector type detection fails and marks those as eDP connectors.

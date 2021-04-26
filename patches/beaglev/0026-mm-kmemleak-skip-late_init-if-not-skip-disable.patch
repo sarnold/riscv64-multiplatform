@@ -1,7 +1,7 @@
-From 5eb58d95bd1baf27aea72c349fdf1889241f28a8 Mon Sep 17 00:00:00 2001
+From f14a280b2a5bf00912c9ec8438f49e2ef57fa384 Mon Sep 17 00:00:00 2001
 From: Murphy Zhou <jencce.kernel@gmail.com>
 Date: Sun, 29 Sep 2019 17:56:59 +0800
-Subject: [PATCH 26/86] mm/kmemleak: skip late_init if not skip disable
+Subject: [PATCH 26/79] mm/kmemleak: skip late_init if not skip disable
 
 Now if DEFAULT_OFF set to y, kmemleak_init will start the cleanup_work
 workqueue. Then late_init call will set kmemleak_initialized to 1, the

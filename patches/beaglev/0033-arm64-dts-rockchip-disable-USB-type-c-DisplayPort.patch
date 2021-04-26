@@ -1,7 +1,7 @@
-From d1425d432d2b99066e32291cca31419c5182bef9 Mon Sep 17 00:00:00 2001
+From 0bdd7c6832ffbf83f8a8351a579010d2d0eeb8d3 Mon Sep 17 00:00:00 2001
 From: Jian-Hong Pan <jhp@endlessos.org>
 Date: Thu, 24 Sep 2020 14:30:43 +0800
-Subject: [PATCH 33/86] arm64: dts: rockchip: disable USB type-c DisplayPort
+Subject: [PATCH 33/79] arm64: dts: rockchip: disable USB type-c DisplayPort
 
 The cdn-dp sub driver probes the device failed on PINEBOOK Pro.
 

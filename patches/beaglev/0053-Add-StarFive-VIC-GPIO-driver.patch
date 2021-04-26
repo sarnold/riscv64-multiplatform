@@ -1,7 +1,7 @@
-From ad8bca43d220f3afa5b36f9bfa9fa253e524d044 Mon Sep 17 00:00:00 2001
+From da997cae7c1356dac96b82785baae1684e96dbf0 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 03:19:19 +0800
-Subject: [PATCH 53/86] Add StarFive VIC GPIO driver
+Subject: [PATCH 53/79] Add StarFive VIC GPIO driver
 
 ---
  drivers/gpio/Kconfig              |   8 +

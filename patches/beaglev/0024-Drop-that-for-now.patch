@@ -1,7 +1,7 @@
-From fa69bdf0eec5645db979b2de8fc299f2c6cbe937 Mon Sep 17 00:00:00 2001
+From f814e171743a9b6d77d5c1ee7fa8f0f488c75f2f Mon Sep 17 00:00:00 2001
 From: Laura Abbott <labbott@redhat.com>
 Date: Wed, 23 Jan 2019 14:36:37 +0100
-Subject: [PATCH 24/86] Drop that for now
+Subject: [PATCH 24/79] Drop that for now
 
 ---
  Makefile | 1 +

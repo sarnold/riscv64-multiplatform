@@ -1,7 +1,7 @@
-From e137fae33b1eb3a2469c666a48c42cbda5adbbf5 Mon Sep 17 00:00:00 2001
+From 45a610f0a27e45a8c3778f2307351082b6eca88f Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Mon, 11 Jan 2021 00:43:19 +0800
-Subject: [PATCH 60/86] Improve stmmac data cache flush [v0.9->v1.0]
+Subject: [PATCH 60/79] Improve stmmac data cache flush [v0.9->v1.0]
 
 ---
  drivers/net/ethernet/stmicro/stmmac/stmmac_main.c | 9 +++++++++

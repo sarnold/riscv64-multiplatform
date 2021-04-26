@@ -1,7 +1,7 @@
-From f26dc49799670af682dfcb01c42e8bcb4bb7d36d Mon Sep 17 00:00:00 2001
+From ab71ab81bab70b7af3c3bdbc4644f9ac0704126c Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 03:11:04 +0800
-Subject: [PATCH 46/86] Add serial 8250 improvment for VIC7100
+Subject: [PATCH 46/79] Add serial 8250 improvment for VIC7100
 
 ---
  drivers/tty/serial/8250/8250_port.c | 8 ++++++++

@@ -1,7 +1,7 @@
-From 9d3cf3894be765b9903a1b40ef3f5f019a8e346e Mon Sep 17 00:00:00 2001
+From b9d401def8221a35a0f2ee07b84f4038d5ff9444 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 04:01:19 +0800
-Subject: [PATCH 49/86] improve stmicro stmmac driver by configuring gtxclk
+Subject: [PATCH 49/79] improve stmicro stmmac driver by configuring gtxclk
  based on speed
 
 ---

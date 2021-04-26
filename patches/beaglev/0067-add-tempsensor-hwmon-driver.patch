@@ -1,7 +1,7 @@
-From 9687871edf1acca025805dd49b65eadf34529614 Mon Sep 17 00:00:00 2001
+From 50cb83b86bdc90875484ca2034d4b0a10ef7ac9a Mon Sep 17 00:00:00 2001
 From: Samin Guo <samin.guo@starfivetech.com>
 Date: Fri, 5 Feb 2021 11:29:44 +0800
-Subject: [PATCH 67/86] add tempsensor hwmon driver
+Subject: [PATCH 67/79] add tempsensor hwmon driver
 
 ---
  drivers/hwmon/Kconfig  |   8 ++

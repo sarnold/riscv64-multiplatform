@@ -1,7 +1,7 @@
-From 09feb750265f9ea942a316e27d477257acd5e739 Mon Sep 17 00:00:00 2001
+From 967462b7245dde0baa3831e5407da3772822667a Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Mon, 11 Jan 2021 04:06:22 +0800
-Subject: [PATCH 65/86] fbdev add
+Subject: [PATCH 65/79] fbdev add
 
 ---
  drivers/media/platform/Kconfig                |    7 +
@@ -9,7 +9,7 @@ Subject: [PATCH 65/86] fbdev add
  drivers/media/platform/starfive/Makefile      |    6 +
  drivers/media/platform/starfive/stf_event.c   |   39 +
  drivers/media/platform/starfive/stf_isp.c     |  170 +++
- drivers/media/platform/starfive/stf_isp.h     |   17 +
+ drivers/media/platform/starfive/stf_isp.h     |   16 +
  drivers/media/platform/starfive/stf_vin.c     |  764 +++++++++++
  drivers/video/fbdev/Kconfig                   |   10 +
  drivers/video/fbdev/Makefile                  |    1 +
@@ -27,7 +27,7 @@ Subject: [PATCH 65/86] fbdev add
  drivers/video/fbdev/starfive/starfive_vpp.c   |  593 +++++++++
  drivers/video/fbdev/starfive/starfive_vpp.h   |  194 +++
  include/video/stf-vin.h                       |  187 +++
- 23 files changed, 5130 insertions(+)
+ 23 files changed, 5129 insertions(+)
  create mode 100644 drivers/media/platform/starfive/Makefile
  create mode 100644 drivers/media/platform/starfive/stf_event.c
  create mode 100644 drivers/media/platform/starfive/stf_isp.c
@@ -140,7 +140,7 @@ index 000000000000..088354fd700f
 +MODULE_SUPPORTED_DEVICE("video");
 diff --git a/drivers/media/platform/starfive/stf_isp.c b/drivers/media/platform/starfive/stf_isp.c
 new file mode 100644
-index 000000000000..77cf7995a495
+index 000000000000..8bbe462d53b8
 --- /dev/null
 +++ b/drivers/media/platform/starfive/stf_isp.c
 @@ -0,0 +1,170 @@
@@ -189,7 +189,7 @@ index 000000000000..77cf7995a495
 +		pr_err("unknown format\n");
 +		return;
 +	}
-+	
++
 +	reg_write(vin->base_isp, ISP_REG_RAW_FORMAT_CFG, 0x000011BB);	// sym_order = [0+:16]
 +	reg_write(vin->base_isp, ISP_REG_CFA_MODE, 0x00000030);
 +	reg_write(vin->base_isp, ISP_REG_PIC_CAPTURE_START_CFG, 0x00000000); // cro_hstart = [0+:16], cro_vstart = [16+:16]
@@ -199,7 +199,7 @@ index 000000000000..77cf7995a495
 +{
 +	u32 val = 0;
 +	val = (vin->frame.width-1) + ((vin->frame.height-1)<<16);
-+	
++
 +	reg_write(vin->base_isp, ISP_REG_PIC_CAPTURE_END_CFG, val);	// cro_hend = [0+:16], cro_vend = [16+:16]
 +	val = (vin->frame.width) + ((vin->frame.height)<<16);
 +	reg_write(vin->base_isp, ISP_REG_PIPELINE_XY_SIZE, val);	// ISP pipeline width[0+:16], height[16+:16]
@@ -210,9 +210,9 @@ index 000000000000..77cf7995a495
 +	reg_write(vin->base_isp, ISP_REG_STRIDE, vin->frame.width);	// Unscaled Output Image Stride Register
 +
 +	reg_write(vin->base_isp, ISP_REG_PIXEL_COORDINATE_GEN, 0x00000010);	// Unscaled Output Pixel Coordinate Generator Mode Register
-+	reg_write(vin->base_isp, ISP_REG_PIXEL_AXI_CONTROL, 0x00000000);	
++	reg_write(vin->base_isp, ISP_REG_PIXEL_AXI_CONTROL, 0x00000000);
 +	reg_write(vin->base_isp, ISP_REG_SS_AXI_CONTROL, 0x00000000);
-+	
++
 +	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION0, 0x0000004D);	// ICCONV_0
 +	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION1, 0x00000096);	// ICCONV_1
 +	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION2, 0x0000001D);	// ICCONV_2
@@ -222,9 +222,9 @@ index 000000000000..77cf7995a495
 +	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION6, 0x0000009D);	// ICCONV_6
 +	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION7, 0x0000017C);	// ICCONV_7
 +	reg_write(vin->base_isp, ISP_REG_RGB_TO_YUV_COVERSION8, 0x000001E6);	// ICCONV_8
-+	
-+	reg_write(vin->base_isp, ISP_REG_CIS_MODULE_CFG, 0x00000000);	
-+	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_1, 0x10000022);	//0x30000022);//	
++
++	reg_write(vin->base_isp, ISP_REG_CIS_MODULE_CFG, 0x00000000);
++	reg_write(vin->base_isp, ISP_REG_ISP_CTRL_1, 0x10000022);	//0x30000022);//
 +	reg_write(vin->base_isp, ISP_REG_DC_AXI_ID, 0x00000000);
 +	reg_write(vin->base_isp, 0x00000008, 0x00010005);//this reg can not be found in document
 +}
@@ -316,10 +316,10 @@ index 000000000000..77cf7995a495
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/media/platform/starfive/stf_isp.h b/drivers/media/platform/starfive/stf_isp.h
 new file mode 100644
-index 000000000000..91dba96f57bb
+index 000000000000..6fc8cafd4777
 --- /dev/null
 +++ b/drivers/media/platform/starfive/stf_isp.h
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,16 @@
 +/*
 + * StarFive isp driver
 + *
@@ -336,10 +336,9 @@ index 000000000000..91dba96f57bb
 +extern void isp_base_addr_config(struct stf_vin_dev *vin);
 +
 +#endif
-+
 diff --git a/drivers/media/platform/starfive/stf_vin.c b/drivers/media/platform/starfive/stf_vin.c
 new file mode 100644
-index 000000000000..cb161c349514
+index 000000000000..6fe19d20376a
 --- /dev/null
 +++ b/drivers/media/platform/starfive/stf_vin.c
 @@ -0,0 +1,764 @@
@@ -396,7 +395,7 @@ index 000000000000..cb161c349514
 +{
 +	reg_write(base, reg, reg_read(base, reg) & ~mask);
 +}
-+	
++
 +static void reg_set_highest_bit(void __iomem * base, u32 reg)
 +{
 +    u32 val;
@@ -419,7 +418,7 @@ index 000000000000..cb161c349514
 +{
 +	int ret = 0;
 +	mutex_lock(&vin_mutex);
-+	
++
 +	struct stf_vin_dev *dev;
 +	dev=container_of(inode->i_cdev, struct stf_vin_dev, vin_cdev);
 +
@@ -701,7 +700,7 @@ index 000000000000..cb161c349514
 +		val_vin_rw_ctrl_reg = 0x00010300;
 +		val_vin_src_channel_reg = 0x00000088;
 +		val_vin_axi_ctrl_reg = 0x00000004;
-+		
++
 +		reg_write(sysctrl_base, SYSCTRL_REG13, val_vin_rd_pix_total_reg);
 +		reg_write(sysctrl_base, SYSCTRL_REG17, val_vin_rd_vblank_reg);
 +		reg_write(sysctrl_base, SYSCTRL_REG18, val_vin_rd_vend_reg);
@@ -777,7 +776,7 @@ index 000000000000..cb161c349514
 +	int cnfg_axiwr_pix_ct;
 +
 +	value = reg_read(sysctrl_base, SYSCTRL_REG14) & 0x3;
-+	
++
 +	if (value == 0)
 +		cnfg_axiwr_pix_ct = 2;
 +	else if (value == 1)
@@ -860,7 +859,7 @@ index 000000000000..cb161c349514
 +	vin->odd = wtimes;
 +	wake_up_interruptible(&vin->wq);
 +	wtimes++;
-+	
++
 +	return IRQ_HANDLED;
 +}
 +
@@ -1096,7 +1095,7 @@ index 000000000000..cb161c349514
 +}
 +
 +static void __exit stf_vin_cleanup(void)
-+{	
++{
 +	platform_driver_unregister(&stf_vin_driver);
 +}
 +

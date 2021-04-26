@@ -1,7 +1,7 @@
-From 78271574dc797de295f72f92d30ee3b76a1f3810 Mon Sep 17 00:00:00 2001
+From a7ecbc703aeaf88de6d11d11ece2dd10959242c9 Mon Sep 17 00:00:00 2001
 From: Fedora Kernel Team <kernel-team@fedoraproject.org>
 Date: Wed, 17 Feb 2021 00:22:36 +0800
-Subject: [PATCH 01/86] Stable update
+Subject: [PATCH 01/79] Stable update
 
 ---
  drivers/gpu/drm/msm/dp/dp_link.c | 2 +-

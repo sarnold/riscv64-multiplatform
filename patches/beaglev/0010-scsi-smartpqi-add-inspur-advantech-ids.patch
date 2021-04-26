@@ -1,7 +1,7 @@
-From ebaccd675c5b8072b454948b4660ad0998b7b297 Mon Sep 17 00:00:00 2001
+From a2cd65560958357c24f0851c99bbf406b04d0651 Mon Sep 17 00:00:00 2001
 From: Don Brace <dbrace@redhat.com>
 Date: Mon, 16 Jul 2018 19:20:41 -0400
-Subject: [PATCH 10/86] scsi: smartpqi: add inspur advantech ids
+Subject: [PATCH 10/79] scsi: smartpqi: add inspur advantech ids
 
 Message-id: <1531768843-2544-4-git-send-email-dbrace@redhat.com>
 Patchwork-id: 224988

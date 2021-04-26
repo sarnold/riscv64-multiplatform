@@ -1,7 +1,7 @@
-From 91eb49e4900c21430d2ba002face76741449fd35 Mon Sep 17 00:00:00 2001
+From 89fbc0eacb2dfa1ae75a4e975f06c60f786206eb Mon Sep 17 00:00:00 2001
 From: "Justin M. Forbes" <jforbes@fedoraproject.org>
 Date: Thu, 30 Jul 2020 10:26:11 -0500
-Subject: [PATCH 32/86] Work around for gcc bug
+Subject: [PATCH 32/79] Work around for gcc bug
  https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96377
 
 Signed-off-by: Justin M. Forbes <jforbes@fedoraproject.org>

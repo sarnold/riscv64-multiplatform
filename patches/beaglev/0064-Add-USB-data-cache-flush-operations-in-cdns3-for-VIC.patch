@@ -1,7 +1,7 @@
-From b79cd0a1a608a376ee30504b7186102103b6da1c Mon Sep 17 00:00:00 2001
+From e87c43c4962dfe2aa2fbcff63ec1bbc5b0e06959 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Tue, 12 Jan 2021 02:31:37 +0800
-Subject: [PATCH 64/86] Add USB data cache flush operations in cdns3 for
+Subject: [PATCH 64/79] Add USB data cache flush operations in cdns3 for
  VIC7100
 
 ---

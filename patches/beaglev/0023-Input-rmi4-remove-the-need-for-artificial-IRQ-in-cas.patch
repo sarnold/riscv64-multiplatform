@@ -1,7 +1,7 @@
-From b75f1585a89a420d5f841ee05fe46d1fa791ed0a Mon Sep 17 00:00:00 2001
+From dfae21f3bbeb55e1efa6179db440e982c365535d Mon Sep 17 00:00:00 2001
 From: Benjamin Tissoires <benjamin.tissoires@redhat.com>
 Date: Mon, 3 Apr 2017 18:18:21 +0200
-Subject: [PATCH 23/86] Input: rmi4 - remove the need for artificial IRQ in
+Subject: [PATCH 23/79] Input: rmi4 - remove the need for artificial IRQ in
  case of HID
 
 The IRQ from rmi4 may interfere with the one we currently use on i2c-hid.

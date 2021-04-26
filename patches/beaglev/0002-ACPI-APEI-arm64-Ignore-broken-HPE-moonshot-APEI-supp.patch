@@ -1,7 +1,7 @@
-From e83cf8debd2b2ec91296b36fc155b76be22d26bb Mon Sep 17 00:00:00 2001
+From 4fcb1c0a93cc27764a78bd6f034c97cb21f18971 Mon Sep 17 00:00:00 2001
 From: Al Stone <ahs3@redhat.com>
 Date: Tue, 27 Feb 2018 00:21:23 -0500
-Subject: [PATCH 02/86] ACPI: APEI: arm64: Ignore broken HPE moonshot APEI
+Subject: [PATCH 02/79] ACPI: APEI: arm64: Ignore broken HPE moonshot APEI
  support
 
 Message-id: <20180227002123.21608-1-ahs3@redhat.com>

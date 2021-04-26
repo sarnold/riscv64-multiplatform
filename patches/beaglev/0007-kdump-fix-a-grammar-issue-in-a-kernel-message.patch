@@ -1,7 +1,7 @@
-From 6ee5e97deba97a0d09373d7c3b98f8185ef96a44 Mon Sep 17 00:00:00 2001
+From b6694b95be063e905976eeda274bafbca64baf6c Mon Sep 17 00:00:00 2001
 From: Dave Young <dyoung@redhat.com>
 Date: Tue, 12 Jun 2018 00:54:22 -0400
-Subject: [PATCH 07/86] kdump: fix a grammar issue in a kernel message
+Subject: [PATCH 07/79] kdump: fix a grammar issue in a kernel message
 
 Message-id: <20180612005422.GA2568@dhcp-128-65.nay.redhat.com>
 Patchwork-id: 8201

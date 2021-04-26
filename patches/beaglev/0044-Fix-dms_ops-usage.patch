@@ -1,7 +1,7 @@
-From 8216d99f32ba59012c0a0612472166f5daa570f4 Mon Sep 17 00:00:00 2001
+From 6ea7f394f6aa1a0aa6c58cdd0f93059e26536ca9 Mon Sep 17 00:00:00 2001
 From: Tom <support@vamrs.com>
 Date: Fri, 8 Jan 2021 03:07:54 +0800
-Subject: [PATCH 44/86] Fix dms_ops usage.
+Subject: [PATCH 44/79] Fix dms_ops usage.
 
 ---
  .../starfive_dmaengine_memcpy.c               | 23 +++++++++++++++++--

@@ -1,7 +1,7 @@
-From 6d33a7867837b7072344338bdc7c00584e4332da Mon Sep 17 00:00:00 2001
+From a701fde46300c0d28e01b68f73aaaef8b6fcf2e3 Mon Sep 17 00:00:00 2001
 From: Takashi Iwai <tiwai@suse.de>
 Date: Mon, 4 Jan 2021 16:30:46 +0100
-Subject: [PATCH 37/86] ALSA: hda/via: Fix runtime PM for Clevo W35xSS
+Subject: [PATCH 37/79] ALSA: hda/via: Fix runtime PM for Clevo W35xSS
 
 Clevo W35xSS_370SS with VIA codec has had the runtime PM problem that
 looses the power state of some nodes after the runtime resume.  This

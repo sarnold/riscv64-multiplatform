@@ -1,7 +1,7 @@
-From 40d140b5472ccd3abd4a1159bb46d6f36b1458f4 Mon Sep 17 00:00:00 2001
+From 6d06a115e47ddd5ab4e0e8093721c5225a3fabb4 Mon Sep 17 00:00:00 2001
 From: Robert Holmes <robeholmes@gmail.com>
 Date: Tue, 23 Apr 2019 07:39:29 +0000
-Subject: [PATCH 25/86] KEYS: Make use of platform keyring for module signature
+Subject: [PATCH 25/79] KEYS: Make use of platform keyring for module signature
  verify
 
 This patch completes commit 278311e417be ("kexec, KEYS: Make use of

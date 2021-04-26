@@ -1,7 +1,7 @@
-From 72fa71b974a7a9907ed856c8efcb64bbb560bc71 Mon Sep 17 00:00:00 2001
+From dd3d03047655e184d5cf328fce98a17f1f921cb8 Mon Sep 17 00:00:00 2001
 From: Icenowy Zheng <icenowy@aosc.io>
 Date: Mon, 16 Mar 2020 21:35:02 +0800
-Subject: [PATCH 30/86] drm/sun4i: sun6i_mipi_dsi: fix horizontal timing
+Subject: [PATCH 30/79] drm/sun4i: sun6i_mipi_dsi: fix horizontal timing
  calculation
 
 The max() function call in horizontal timing calculation shouldn't pad a

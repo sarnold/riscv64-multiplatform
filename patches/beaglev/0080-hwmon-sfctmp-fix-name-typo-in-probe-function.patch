@@ -1,0 +1,33 @@
+From 1b1e1948fc3ec1c18e510dcd8b6ee609f092448e Mon Sep 17 00:00:00 2001
+From: Stephen L Arnold <nerdboy@gentoo.org>
+Date: Wed, 28 Apr 2021 22:28:46 -0700
+Subject: [PATCH] hwmon: sfctmp: fix name typo in probe function
+
+Signed-off-by: Stephen L Arnold <nerdboy@gentoo.org>
+---
+ drivers/hwmon/sfctmp.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/hwmon/sfctmp.c b/drivers/hwmon/sfctmp.c
+index 901f92f8dd2d..cf5b79990d6c 100644
+--- a/drivers/hwmon/sfctmp.c
++++ b/drivers/hwmon/sfctmp.c
+@@ -160,7 +160,7 @@ static int sfc_temp_probe(struct platform_device *pdev)
+ 		return PTR_ERR(sfc_temp->regs);
+ 	}
+ 
+-	sfc_temp->name = "sfc_tempsnsor";
++	sfc_temp->name = "sfc_tempsensor";
+ 
+ 	ret = devm_request_irq(temp_dev, sfc_temp->irq, sfc_temp_isr,
+ 			       IRQF_SHARED, sfc_temp->name, sfc_temp);
+@@ -208,4 +208,4 @@ module_platform_driver(sfc_temp_sensor_driver);
+ 
+ MODULE_AUTHOR("samin.guo");
+ MODULE_DESCRIPTION("SFC temperature sensor driver");
+-MODULE_LICENSE("GPL");
+\ No newline at end of file
++MODULE_LICENSE("GPL");
+-- 
+2.30.0
+

@@ -289,9 +289,16 @@ beaglev () {
 	done
 }
 
-#drivers () {
-#
-#}
+drivers () {
+	echo "dir: drivers/bcmdhd"
+	${git} "${DIR}/patches/drivers/bcmdhd/0001-add-BCMDHD-driver.patch"
+	${git} "${DIR}/patches/drivers/bcmdhd/0002-FIX-build-BCMDHD-driver.patch"
+}
+
+riscv () {
+	echo "dir: riscv"
+	${git} "${DIR}/patches/riscv/0001-arch-riscv-enable-pm_sleep-for-beaglev-bcmdhd-testin.patch"
+}
 
 #soc () {
 #
@@ -300,9 +307,10 @@ beaglev () {
 ###
 #backports
 #reverts
-#drivers
-#soc
+riscv
 beaglev
+drivers
+#soc
 
 packaging () {
 	#do_backport="enable"

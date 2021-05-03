@@ -1,0 +1,42 @@
+From 464ebe957a946db36cd5515337e1012fbf3eb0d3 Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Thu, 3 Dec 2020 03:05:22 +0800
+Subject: [PATCH 01/32] fedora: Fix a warning for Fedora build.
+
+security/keys/dh.c
+---
+ security/keys/dh.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/security/keys/dh.c b/security/keys/dh.c
+index 1abfa70ed6e1..326f2ac41b91 100644
+--- a/security/keys/dh.c
++++ b/security/keys/dh.c
+@@ -281,21 +281,21 @@ long __keyctl_dh_compute(struct keyctl_dh_params __user *params,
+ 
+ 	memset(&dh_inputs, 0, sizeof(dh_inputs));
+ 
+-	dlen = dh_data_from_key(pcopy.prime, &dh_inputs.p);
++	dlen = dh_data_from_key(pcopy.prime, (void **)&dh_inputs.p);
+ 	if (dlen < 0) {
+ 		ret = dlen;
+ 		goto out1;
+ 	}
+ 	dh_inputs.p_size = dlen;
+ 
+-	dlen = dh_data_from_key(pcopy.base, &dh_inputs.g);
++	dlen = dh_data_from_key(pcopy.base, (void **)&dh_inputs.g);
+ 	if (dlen < 0) {
+ 		ret = dlen;
+ 		goto out2;
+ 	}
+ 	dh_inputs.g_size = dlen;
+ 
+-	dlen = dh_data_from_key(pcopy.private, &dh_inputs.key);
++	dlen = dh_data_from_key(pcopy.private, (void **)&dh_inputs.key);
+ 	if (dlen < 0) {
+ 		ret = dlen;
+ 		goto out2;
+-- 
+2.30.0
+

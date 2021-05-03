@@ -282,7 +282,7 @@ reverts () {
 }
 
 beaglev () {
-	echo "dir: beaglev (sft-riscv-linux-5.10,starfive branch)"
+	echo "dir: beaglev (sft-riscv-linux-5.10, starfive branch)"
 	PATCHES=$(find "${DIR}/patches/beaglev/" -name \*.patch | sort)
 	for patch in "$PATCHES"; do
 		${git} $patch
@@ -300,17 +300,21 @@ riscv () {
 	${git} "${DIR}/patches/riscv/0001-arch-riscv-enable-pm_sleep-for-beaglev-bcmdhd-testin.patch"
 }
 
-#soc () {
-#
-#}
+soc () {
+	echo "dir: soc/beaglev (linux-5.10, Fedora branch)"
+	PATCHES=$(find "${DIR}/patches/soc/beaglev/" -name \*.patch | sort)
+	for patch in "$PATCHES"; do
+		${git} $patch
+	done
+}
 
 ###
 #backports
 #reverts
-riscv
-beaglev
-drivers
-#soc
+#riscv
+#beaglev
+#drivers
+soc
 
 packaging () {
 	#do_backport="enable"

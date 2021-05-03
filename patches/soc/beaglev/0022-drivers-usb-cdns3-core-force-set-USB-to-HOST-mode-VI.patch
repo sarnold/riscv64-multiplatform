@@ -1,0 +1,39 @@
+From 51519a9340066ecbad80afca92fd9a4e26c53226 Mon Sep 17 00:00:00 2001
+From: Tom <support@vamrs.com>
+Date: Mon, 19 Apr 2021 01:17:19 +0800
+Subject: [PATCH 22/32] drivers/usb/cdns3/core: force set USB to HOST
+ mode(VIC7100 DEBUG)
+
+---
+ drivers/usb/cdns3/core.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/usb/cdns3/core.c b/drivers/usb/cdns3/core.c
+index 039ab5d2435e..659c4042af9b 100644
+--- a/drivers/usb/cdns3/core.c
++++ b/drivers/usb/cdns3/core.c
+@@ -18,6 +18,7 @@
+ #include <linux/interrupt.h>
+ #include <linux/io.h>
+ #include <linux/pm_runtime.h>
++//#include <linux/gpio.h>
+ 
+ #include "gadget.h"
+ #include "core.h"
+@@ -89,6 +90,13 @@ static int cdns3_core_init_role(struct cdns3 *cdns)
+ 	int ret;
+ 
+ 	dr_mode = usb_get_dr_mode(dev);
++#ifdef CONFIG_SOC_STARFIVE_VIC7100
++	dr_mode = USB_DR_MODE_HOST;
++/*
++	if(gpio_get_value(22))
++		dr_mode = USB_DR_MODE_PERIPHERAL;
++*/
++#endif
+ 	cdns->role = USB_ROLE_NONE;
+ 
+ 	/*
+-- 
+2.30.0
+

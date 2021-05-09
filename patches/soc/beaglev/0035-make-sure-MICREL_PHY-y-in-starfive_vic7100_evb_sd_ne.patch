@@ -1,0 +1,55 @@
+From 652c6a2472a9838e35218e291672399ec8d88879 Mon Sep 17 00:00:00 2001
+From: Stephen L Arnold <nerdboy@gentoo.org>
+Date: Sat, 8 May 2021 15:32:26 -0700
+Subject: [PATCH 1/2] make sure MICREL_PHY=y in starfive_vic7100_evb_sd_net*
+ configs
+
+Signed-off-by: Stephen L Arnold <nerdboy@gentoo.org>
+---
+ arch/riscv/configs/starfive_vic7100_evb_sd_net_defconfig        | 2 +-
+ arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig | 2 +-
+ arch/riscv/configs/starfive_vic7100_evb_sd_net_usb_defconfig    | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/riscv/configs/starfive_vic7100_evb_sd_net_defconfig b/arch/riscv/configs/starfive_vic7100_evb_sd_net_defconfig
+index 4487005fcb77..41fa03c9bdfe 100644
+--- a/arch/riscv/configs/starfive_vic7100_evb_sd_net_defconfig
++++ b/arch/riscv/configs/starfive_vic7100_evb_sd_net_defconfig
+@@ -870,7 +870,7 @@ CONFIG_FIXED_PHY=y
+ # CONFIG_LXT_PHY is not set
+ CONFIG_MARVELL_PHY=y
+ # CONFIG_MARVELL_10G_PHY is not set
+-# CONFIG_MICREL_PHY is not set
++CONFIG_MICREL_PHY=y
+ # CONFIG_MICROCHIP_PHY is not set
+ # CONFIG_MICROCHIP_T1_PHY is not set
+ # CONFIG_MICROSEMI_PHY is not set
+diff --git a/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig b/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
+index c5b983a7a307..a0221629df72 100644
+--- a/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
++++ b/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
+@@ -2679,7 +2679,7 @@ CONFIG_INTEL_XWAY_PHY=m
+ CONFIG_LSI_ET1011C_PHY=m
+ CONFIG_MARVELL_PHY=y
+ CONFIG_MARVELL_10G_PHY=m
+-CONFIG_MICREL_PHY=m
++CONFIG_MICREL_PHY=y
+ CONFIG_MICROCHIP_PHY=m
+ # CONFIG_MICROCHIP_T1_PHY is not set
+ CONFIG_MICROSEMI_PHY=m
+diff --git a/arch/riscv/configs/starfive_vic7100_evb_sd_net_usb_defconfig b/arch/riscv/configs/starfive_vic7100_evb_sd_net_usb_defconfig
+index 9ad4885ac499..0305224157cf 100644
+--- a/arch/riscv/configs/starfive_vic7100_evb_sd_net_usb_defconfig
++++ b/arch/riscv/configs/starfive_vic7100_evb_sd_net_usb_defconfig
+@@ -875,7 +875,7 @@ CONFIG_FIXED_PHY=y
+ # CONFIG_LXT_PHY is not set
+ CONFIG_MARVELL_PHY=y
+ # CONFIG_MARVELL_10G_PHY is not set
+-# CONFIG_MICREL_PHY is not set
++CONFIG_MICREL_PHY=y
+ # CONFIG_MICROCHIP_PHY is not set
+ # CONFIG_MICROCHIP_T1_PHY is not set
+ # CONFIG_MICROSEMI_PHY is not set
+-- 
+2.30.0
+

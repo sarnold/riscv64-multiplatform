@@ -1,0 +1,40 @@
+From 23945674bc0d041bf65104a065262aba8112cd2b Mon Sep 17 00:00:00 2001
+From: Heinrich Schuchardt <xypron.glpk@gmx.de>
+Date: Tue, 4 May 2021 12:30:59 +0200
+Subject: [PATCH 2/2] config: disable CONFIG_MODULE_COMPRESS
+
+Building bindeb-pkg and binrpm-pgk fails at least on Debian Bullseye when
+both module signing and module compression are enabled. The signing step
+is executed after compression but expects uncompressed modules:
+
+At main.c:291:
+- SSL error:02001002:system library:fopen:No such file or directory: ../crypto/bio/bss_file.c:69
+- SSL error:2006D080:BIO routines:BIO_new_file:no such file: ../crypto/bio/bss_file.c:76
+sign-file: debian/linux-image/lib/modules/5.10.6+/kernel/crypto/adiantum.ko: No such file or directory
+  SIGN [M] debian/linux-image/lib/modules/5.10.6+/kernel/crypto/async_tx/async_raid6_recov.ko
+
+Disabling CONFIG_MODULE_COMPRESS solves the issue.
+
+Signed-off-by: Heinrich Schuchardt <xypron.glpk@gmx.de>
+---
+ .../configs/starfive_vic7100_evb_sd_net_fedora_defconfig      | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig b/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
+index 331e2d50a58b..c5b983a7a307 100644
+--- a/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
++++ b/arch/riscv/configs/starfive_vic7100_evb_sd_net_fedora_defconfig
+@@ -422,9 +422,7 @@ CONFIG_MODULE_SIG_ALL=y
+ # CONFIG_MODULE_SIG_SHA384 is not set
+ CONFIG_MODULE_SIG_SHA512=y
+ CONFIG_MODULE_SIG_HASH="sha512"
+-CONFIG_MODULE_COMPRESS=y
+-# CONFIG_MODULE_COMPRESS_GZIP is not set
+-CONFIG_MODULE_COMPRESS_XZ=y
++# CONFIG_MODULE_COMPRESS is not set
+ # CONFIG_MODULE_ALLOW_MISSING_NAMESPACE_IMPORTS is not set
+ CONFIG_UNUSED_SYMBOLS=y
+ CONFIG_MODULES_TREE_LOOKUP=y
+-- 
+2.30.0
+

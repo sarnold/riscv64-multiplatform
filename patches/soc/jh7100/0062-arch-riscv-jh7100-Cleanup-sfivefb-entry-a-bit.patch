@@ -1,0 +1,60 @@
+From 103f4e5327cdb09230980ad453f0f0eaa4b1c6ec Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Sat, 15 May 2021 00:53:37 +0200
+Subject: [PATCH 3/5] arch: riscv: jh7100: Cleanup sfivefb entry a bit
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ .../dts/starfive/jh7100-beaglev-starlight.dts    |  2 ++
+ arch/riscv/boot/dts/starfive/jh7100.dtsi         | 16 ++++++++--------
+ 2 files changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts b/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts
+index aad81b3c73de..0d6262f5fc48 100644
+--- a/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts
++++ b/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts
+@@ -210,6 +210,8 @@ wifi@1 {
+ };
+ 
+ &sfivefb {
++	status = "okay";
++
+ 	/*
+ 	pp1 {
+ 		pp-id = <1>;
+diff --git a/arch/riscv/boot/dts/starfive/jh7100.dtsi b/arch/riscv/boot/dts/starfive/jh7100.dtsi
+index 6fca42e9d094..663d05059aaf 100644
+--- a/arch/riscv/boot/dts/starfive/jh7100.dtsi
++++ b/arch/riscv/boot/dts/starfive/jh7100.dtsi
+@@ -511,20 +511,20 @@ sfivefb: sfivefb@12000000 {
+ 			interrupts = <101>, <103>;
+ 			interrupt-names = "lcdc_irq", "vpp1_irq";
+ 			reg = <0x0 0x12000000 0x0 0x10000>,
+-				<0x0 0x12100000 0x0 0x10000>,
+-				<0x0 0x12040000 0x0 0x10000>,
+-				<0x0 0x12080000 0x0 0x10000>,
+-				<0x0 0x120c0000 0x0 0x10000>,
+-				<0x0 0x12240000 0x0 0x10000>,
+-				<0x0 0x12250000 0x0 0x10000>,
+-				<0x0 0x12260000 0x0 0x10000>;
++			      <0x0 0x12100000 0x0 0x10000>,
++			      <0x0 0x12040000 0x0 0x10000>,
++			      <0x0 0x12080000 0x0 0x10000>,
++			      <0x0 0x120c0000 0x0 0x10000>,
++			      <0x0 0x12240000 0x0 0x10000>,
++			      <0x0 0x12250000 0x0 0x10000>,
++			      <0x0 0x12260000 0x0 0x10000>;
+ 			reg-names = "lcdc", "dsitx", "vpp0", "vpp1", "vpp2", "clk", "rst", "sys";
+ 			memory-region = <&sffb_reserved>;
+ 			clocks = <&clkgen JH7100_CLK_UART>,
+ 				 <&clkgen JH7100_CLK_APB2>;
+ 			clock-names = "baudclk", "apb_pclk";
+-			status = "okay";
+ 			ddr-format = <WIN_FMT_RGB565>;/*LCDC win_format*/
++			status = "disabled";
+ 		};
+ 
+ 		vin_sysctl: vin_sysctl@19800000 {
+-- 
+2.31.1
+

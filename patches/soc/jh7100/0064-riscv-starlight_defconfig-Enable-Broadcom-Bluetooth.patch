@@ -1,0 +1,56 @@
+From 207e0445565b39ede792c4403b00e2214bec9fa3 Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Fri, 11 Jun 2021 17:39:48 +0200
+Subject: [PATCH 5/5] riscv: starlight_defconfig: Enable Broadcom Bluetooth
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ arch/riscv/configs/starlight_defconfig | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/arch/riscv/configs/starlight_defconfig b/arch/riscv/configs/starlight_defconfig
+index 4b5c277d6c6f..60f22a0d6658 100644
+--- a/arch/riscv/configs/starlight_defconfig
++++ b/arch/riscv/configs/starlight_defconfig
+@@ -59,6 +59,14 @@ CONFIG_IP_PNP_DHCP=y
+ CONFIG_IPV6_MULTIPLE_TABLES=y
+ CONFIG_NET_SCHED=y
+ CONFIG_NET_SCH_FQ_CODEL=y
++CONFIG_BT=y
++CONFIG_BT_RFCOMM=y
++CONFIG_BT_BNEP=y
++CONFIG_BT_HIDP=y
++CONFIG_BT_HS=y
++CONFIG_BT_LEDS=y
++CONFIG_BT_HCIUART=y
++CONFIG_BT_HCIUART_BCM=y
+ CONFIG_CFG80211=y
+ # CONFIG_CFG80211_DEFAULT_PS is not set
+ CONFIG_RFKILL=y
+@@ -102,6 +110,7 @@ CONFIG_SERIAL_8250=y
+ # CONFIG_SERIAL_8250_16550A_VARIANTS is not set
+ CONFIG_SERIAL_8250_CONSOLE=y
+ CONFIG_SERIAL_8250_DW=y
++CONFIG_SERIAL_DEV_BUS=y
+ # CONFIG_DEVMEM is not set
+ # CONFIG_I2C_COMPAT is not set
+ CONFIG_I2C_CHARDEV=y
+@@ -149,7 +158,6 @@ CONFIG_MMC_DW=y
+ CONFIG_NEW_LEDS=y
+ CONFIG_LEDS_CLASS=y
+ CONFIG_LEDS_GPIO=y
+-CONFIG_LEDS_TRIGGERS=y
+ CONFIG_LEDS_TRIGGER_HEARTBEAT=y
+ CONFIG_DMADEVICES=y
+ CONFIG_DW_AXI_DMAC=y
+@@ -184,6 +192,7 @@ CONFIG_NLS_CODEPAGE_437=y
+ CONFIG_NLS_ISO8859_15=y
+ CONFIG_NLS_UTF8=y
+ CONFIG_LSM=""
++# CONFIG_CRYPTO_AES is not set
+ CONFIG_CRYPTO_ZSTD=y
+ # CONFIG_CRYPTO_HW is not set
+ # CONFIG_RAID6_PQ_BENCHMARK is not set
+-- 
+2.31.1
+

@@ -1,0 +1,62 @@
+From 6d52e2f46a8efd4c7b534b812f0ff807b2da53fb Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Sat, 15 May 2021 00:53:37 +0200
+Subject: [PATCH 2/5] riscv: dts: jh7100: Add missing SPI entries
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ arch/riscv/boot/dts/starfive/jh7100.dtsi | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/arch/riscv/boot/dts/starfive/jh7100.dtsi b/arch/riscv/boot/dts/starfive/jh7100.dtsi
+index bacd2df6299a..6fca42e9d094 100644
+--- a/arch/riscv/boot/dts/starfive/jh7100.dtsi
++++ b/arch/riscv/boot/dts/starfive/jh7100.dtsi
+@@ -419,12 +419,11 @@ qspi: spi@11860000 {
+ 			spi-max-frequency = <250000000>;
+ 		};
+ 
+-		/*
+ 		spi0: spi@11890000 {
+ 			compatible = "snps,dw-apb-ssi";
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+-			interrupts = <FIXME>;
++			interrupts = <94>;
+ 			reg = <0x0 0x11890000 0x0 0x10000>;
+ 			clocks = <&clkgen JH7100_CLK_SPI>;
+ 			status = "disabled";
+@@ -434,12 +433,11 @@ spi1: spi@118a0000 {
+ 			compatible = "snps,dw-apb-ssi";
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+-			interrupts = <FIXME>;
++			interrupts = <95>;
+ 			reg = <0x0 0x118a0000 0x0 0x10000>;
+ 			clocks = <&clkgen JH7100_CLK_SPI>;
+ 			status = "disabled";
+ 		};
+-		*/
+ 
+ 		spi2: spi@12410000 {
+ 			compatible = "snps,dw-apb-ssi";
+@@ -451,6 +449,16 @@ spi2: spi@12410000 {
+ 			status = "disabled";
+ 		};
+ 
++		spi3: spi@12420000 {
++			compatible = "snps,dw-apb-ssi";
++			#address-cells = <1>;
++			#size-cells = <0>;
++			interrupts = <71>;
++			reg = <0x0 0x12420000 0x0 0x10000>;
++			clocks = <&clkgen JH7100_CLK_SPI>;
++			status = "disabled";
++		};
++
+ 		xrp@f0000000 {
+ 			compatible = "cdns,xrp";
+ 			reg = <0x0  0xf0000000 0x0 0x01ffffff>,
+-- 
+2.31.1
+

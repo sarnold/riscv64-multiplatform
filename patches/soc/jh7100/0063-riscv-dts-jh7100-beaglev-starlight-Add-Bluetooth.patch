@@ -1,0 +1,35 @@
+From bacc635903adf9558d85daf7e97f52613a001c08 Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Thu, 13 May 2021 00:25:38 +0200
+Subject: [PATCH 4/5] riscv: dts: jh7100-beaglev-starlight: Add Bluetooth
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ .../boot/dts/starfive/jh7100-beaglev-starlight.dts     | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts b/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts
+index 0d6262f5fc48..fb7f2bcdb4b5 100644
+--- a/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts
++++ b/arch/riscv/boot/dts/starfive/jh7100-beaglev-starlight.dts
+@@ -454,7 +454,17 @@ spi_dev0: spi@0 {
+ };
+ 
+ &uart0 {
++	dcd-override;
++	dsr-override;
++	ri-override;
+ 	status = "okay";
++
++	bluetooth {
++		compatible = "brcm,bcm43438-bt";
++		max-speed = <2000000>;
++		device-wakeup-gpios = <&gpio 38 GPIO_ACTIVE_HIGH>;
++		reset-gpios = <&gpio 35 GPIO_ACTIVE_LOW>;
++	};
+ };
+ 
+ &uart3 {
+-- 
+2.31.1
+

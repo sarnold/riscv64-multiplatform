@@ -2,7 +2,7 @@
 #
 ARCH=$(uname -m)
 
-config="beaglev_defconfig"
+config="visionfive_defconfig"
 
 build_prefix="-riscv64-r"
 branch_prefix="v"
@@ -38,7 +38,7 @@ toolchain="gcc_11_riscv64"
 
 #Kernel
 KERNEL_REL=5.15
-KERNEL_TAG=${KERNEL_REL}.5
+KERNEL_TAG=${KERNEL_REL}.6
 kernel_rt=".X-rtY"
 #Kernel Build
 BUILD=${build_prefix}1

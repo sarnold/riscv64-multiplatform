@@ -1,0 +1,176 @@
+From 068dd79a8c09250d6301ce775f75c1dafbfabb32 Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Mon, 20 Sep 2021 23:31:21 +0200
+Subject: [PATCH 48/59] drm/starfive: Use reset api
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ drivers/gpu/drm/starfive/starfive_drm_crtc.c | 20 +++++++++-
+ drivers/gpu/drm/starfive/starfive_drm_crtc.h |  3 +-
+ drivers/gpu/drm/starfive/starfive_drm_vpp.c  | 40 +++++---------------
+ drivers/gpu/drm/starfive/starfive_drm_vpp.h  |  2 -
+ 4 files changed, 30 insertions(+), 35 deletions(-)
+
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_crtc.c b/drivers/gpu/drm/starfive/starfive_drm_crtc.c
+index 362f17cd390e..768b087e577f 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_crtc.c
++++ b/drivers/gpu/drm/starfive/starfive_drm_crtc.c
+@@ -5,6 +5,7 @@
+ #include <linux/clk.h>
+ #include <linux/component.h>
+ #include <linux/of_device.h>
++#include <linux/reset.h>
+ #include <linux/delay.h>
+ #include <drm/drm_atomic.h>
+ #include <drm/drm_atomic_helper.h>
+@@ -330,8 +331,6 @@ static int starfive_crtc_get_memres(struct platform_device *pdev, struct starfiv
+ 			dev_err(&pdev->dev, "Could not match resource name\n");
+ 	}
+ 
+-	sf_crtc->toprst = ioremap(0x11840000, 0x10000);
+-
+ 	return 0;
+ }
+ 
+@@ -348,6 +347,19 @@ static int starfive_crtc_get_clks(struct platform_device *pdev, struct starfive_
+ 	return ret;
+ }
+ 
++static int starfive_crtc_get_resets(struct platform_device *pdev, struct starfive_crtc *sf_crtc)
++{
++	struct reset_control_bulk_data resets[] = {
++		{ .id = "disp_axi" },
++		{ .id = "vout_src" },
++	};
++	int ret = devm_reset_control_bulk_get_exclusive(&pdev->dev, ARRAY_SIZE(resets), resets);
++
++	sf_crtc->rst_disp_axi = resets[0].rstc;
++	sf_crtc->rst_vout_src = resets[1].rstc;
++	return ret;
++}
++
+ static int starfive_parse_dt(struct device *dev, struct starfive_crtc *sf_crtc)
+ {
+ 	int ret;
+@@ -429,6 +441,10 @@ static int starfive_crtc_bind(struct device *dev, struct device *master, void *d
+ 	if (ret)
+ 		return ret;
+ 
++	ret = starfive_crtc_get_resets(pdev, crtcp);
++	if (ret)
++		return ret;
++
+ 	ret = starfive_parse_dt(dev, crtcp);
+ 
+ 	crtcp->pp_conn_lcdc = starfive_pp_get_2lcdc_id(crtcp);
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_crtc.h b/drivers/gpu/drm/starfive/starfive_drm_crtc.h
+index de14e9fea8e0..4bd238581442 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_crtc.h
++++ b/drivers/gpu/drm/starfive/starfive_drm_crtc.h
+@@ -47,7 +47,8 @@ struct starfive_crtc {
+ 	struct clk *clk_disp_axi;
+ 	struct clk *clk_vout_src;
+ 
+-	void __iomem	*toprst;	// 0x11840000, 0x10000
++	struct reset_control *rst_disp_axi;
++	struct reset_control *rst_vout_src;
+ 
+ 	int		lcdc_irq;
+ 	int		vpp0_irq;
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_vpp.c b/drivers/gpu/drm/starfive/starfive_drm_vpp.c
+index dd832e1333d7..3addca4f5906 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_vpp.c
++++ b/drivers/gpu/drm/starfive/starfive_drm_vpp.c
+@@ -4,6 +4,7 @@
+  */
+ #include <linux/clk.h>
+ #include <linux/module.h>
++#include <linux/reset.h>
+ #include <linux/delay.h>
+ #include "starfive_drm_vpp.h"
+ #include "starfive_drm_crtc.h"
+@@ -18,16 +19,6 @@ static inline void sf_set_clear(void __iomem *addr, u32 reg, u32 set, u32 clear)
+ 	iowrite32(value, addr + reg);
+ }
+ 
+-static inline void sf_reg_status_wait(void __iomem *addr, u32 reg, u8 offset, u8 value)
+-{
+-	u32 temp;
+-
+-	do {
+-		temp = ioread32(addr + reg) >> offset;
+-		temp &= 0x01;
+-	} while (temp != value);
+-}
+-
+ static u32 sf_fb_sysread32(struct starfive_crtc *sf_crtc, u32 reg)
+ {
+ 	return ioread32(sf_crtc->base_syscfg + reg);
+@@ -736,16 +727,13 @@ void dsitx_vout_init(struct starfive_crtc *sf_crtc)
+ {
+ 	u32 temp;
+ 
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, BIT(23), BIT(23));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 0);
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, BIT(24), BIT(24));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 24, 0);
++	reset_control_assert(sf_crtc->rst_vout_src);
++	reset_control_assert(sf_crtc->rst_disp_axi);
+ 	clk_prepare_enable(sf_crtc->clk_disp_axi);
+ 	clk_prepare_enable(sf_crtc->clk_vout_src);
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, 0, BIT(23));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 1);
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, 0, BIT(24));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 24, 1);
++	reset_control_deassert(sf_crtc->rst_vout_src);
++	reset_control_deassert(sf_crtc->rst_disp_axi);
++
+ 	sf_set_clear(sf_crtc->base_clk, clk_disp0_axi_ctrl_REG, BIT(31), BIT(31));
+ 	sf_set_clear(sf_crtc->base_clk, clk_disp1_axi_ctrl_REG, BIT(31), BIT(31));
+ 	sf_set_clear(sf_crtc->base_clk, clk_lcdc_oclk_ctrl_REG, BIT(31), BIT(31));
+@@ -773,12 +761,8 @@ void vout_reset(struct starfive_crtc *sf_crtc)
+ 
+ 	clk_prepare_enable(sf_crtc->clk_disp_axi);
+ 	clk_prepare_enable(sf_crtc->clk_vout_src);
+-
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, 0, BIT(23));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 1);
+-
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, 0, BIT(24));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 24, 1);
++	reset_control_deassert(sf_crtc->rst_vout_src);
++	reset_control_deassert(sf_crtc->rst_disp_axi);
+ 
+ 	sf_set_clear(sf_crtc->base_clk, clk_disp0_axi_ctrl_REG, BIT(31), BIT(31));
+ 	sf_set_clear(sf_crtc->base_clk, clk_disp1_axi_ctrl_REG, BIT(31), BIT(31));
+@@ -810,12 +794,8 @@ void vout_disable(struct starfive_crtc *sf_crtc)
+ 
+ 	clk_disable_unprepare(sf_crtc->clk_disp_axi);
+ 	clk_disable_unprepare(sf_crtc->clk_vout_src);
+-
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, BIT(23), BIT(23));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 0);
+-
+-	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, BIT(24), BIT(24));
+-	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 24, 0);
++	reset_control_assert(sf_crtc->rst_vout_src);
++	reset_control_assert(sf_crtc->rst_disp_axi);
+ }
+ 
+ MODULE_AUTHOR("StarFive Technology Co., Ltd.");
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_vpp.h b/drivers/gpu/drm/starfive/starfive_drm_vpp.h
+index c67d10720988..edc253a492ee 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_vpp.h
++++ b/drivers/gpu/drm/starfive/starfive_drm_vpp.h
+@@ -162,8 +162,6 @@ struct pp_mode {
+ #define PP_COEF_B1		0
+ #define PP_OFFSET_1		16
+ 
+-#define rstgen_assert1_REG			0x4
+-#define rstgen_status1_REG			0x14
+ #define vout_rstgen_assert0_REG			0x0
+ #define vout_rstgen_status0_REG			0x4
+ #define clk_vout_apb_ctrl_REG			0x0
+-- 
+2.32.0
+

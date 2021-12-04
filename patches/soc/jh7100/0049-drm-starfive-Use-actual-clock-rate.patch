@@ -1,0 +1,36 @@
+From 1671ab3bb0f95267ab99a71a415c74f56d40a4ad Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Mon, 20 Sep 2021 23:49:31 +0200
+Subject: [PATCH 49/59] drm/starfive: Use actual clock rate
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ drivers/gpu/drm/starfive/starfive_drm_lcdc.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_lcdc.c b/drivers/gpu/drm/starfive/starfive_drm_lcdc.c
+index 705118b2891b..1e3c0156c0f6 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_lcdc.c
++++ b/drivers/gpu/drm/starfive/starfive_drm_lcdc.c
+@@ -2,7 +2,9 @@
+ /*
+  * Copyright (C) 2021 StarFive Technology Co., Ltd.
+  */
++#include <linux/clk.h>
+ #include <linux/module.h>
++#include <linux/units.h>
+ #include <drm/drm_crtc.h>
+ #include "starfive_drm_lcdc.h"
+ #include "starfive_drm_vpp.h"
+@@ -394,7 +396,7 @@ void lcdc_run(struct starfive_crtc *sf_crtc, uint32_t winMode, uint32_t lcdTrig)
+ 
+ static int sf_fb_lcdc_clk_cfg(struct starfive_crtc *sf_crtc, struct drm_crtc_state *state)
+ {
+-	u32 reg_val = 1485000 / state->mode.clock;
++	u32 reg_val = clk_get_rate(sf_crtc->clk_vout_src) / (state->mode.clock * HZ_PER_KHZ);
+ 	u32 tmp_val;
+ 
+ 	dev_dbg(sf_crtc->dev, "%s: reg_val = %u\n", __func__, reg_val);
+-- 
+2.32.0
+

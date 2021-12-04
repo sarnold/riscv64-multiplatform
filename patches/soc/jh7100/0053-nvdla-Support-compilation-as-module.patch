@@ -1,0 +1,81 @@
+From 398224df845210be9fcb8c1f3f02535bd2d550f7 Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Sat, 25 Sep 2021 18:38:15 +0200
+Subject: [PATCH 53/59] nvdla: Support compilation as module
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ drivers/nvdla/Kconfig  |  3 +--
+ drivers/nvdla/Makefile | 36 +++++++++++++++++++-----------------
+ kernel/dma/coherent.c  |  1 +
+ 3 files changed, 21 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/nvdla/Kconfig b/drivers/nvdla/Kconfig
+index d992eef7cbb0..cc4268c3f682 100644
+--- a/drivers/nvdla/Kconfig
++++ b/drivers/nvdla/Kconfig
+@@ -1,5 +1,4 @@
+ config NVDLA
+-	bool "The NVIDIA Deep Learning Accelerator"
+-	default n
++	tristate "The NVIDIA Deep Learning Accelerator"
+ 	depends on DRM
+ 	select DRM_GEM_CMA_HELPER
+diff --git a/drivers/nvdla/Makefile b/drivers/nvdla/Makefile
+index 387577c23295..4ba437a0af8e 100644
+--- a/drivers/nvdla/Makefile
++++ b/drivers/nvdla/Makefile
+@@ -1,19 +1,21 @@
+ 
+-ccflags-$(CONFIG_NVDLA) += -I$(srctree)/$(src)
+-ccflags-$(CONFIG_NVDLA) += -I$(srctree)/$(src)/include
++ccflags-y += -I$(srctree)/$(src)
++ccflags-y += -I$(srctree)/$(src)/include
+ 
+-obj-$(CONFIG_NVDLA) += scheduler.o
+-obj-$(CONFIG_NVDLA) += engine.o
+-obj-$(CONFIG_NVDLA) += bdma.o
+-obj-$(CONFIG_NVDLA) += conv.o
+-obj-$(CONFIG_NVDLA) += sdp.o
+-obj-$(CONFIG_NVDLA) += cdp.o
+-obj-$(CONFIG_NVDLA) += pdp.o
+-obj-$(CONFIG_NVDLA) += rubik.o
+-obj-$(CONFIG_NVDLA) += cache.o
+-obj-$(CONFIG_NVDLA) += common.o
+-obj-$(CONFIG_NVDLA) += engine_data.o
+-obj-$(CONFIG_NVDLA) += engine_isr.o
+-obj-$(CONFIG_NVDLA) += engine_debug.o
+-obj-$(CONFIG_NVDLA) += nvdla_core_callbacks.o
+-obj-$(CONFIG_NVDLA) += nvdla_gem.o
++nvdla-y := scheduler.o \
++	   engine.o \
++	   bdma.o \
++	   conv.o \
++	   sdp.o \
++	   cdp.o \
++	   pdp.o \
++	   rubik.o \
++	   cache.o \
++	   common.o \
++	   engine_data.o \
++	   engine_isr.o \
++	   engine_debug.o \
++	   nvdla_core_callbacks.o \
++	   nvdla_gem.o
++
++obj-$(CONFIG_NVDLA) += nvdla.o
+diff --git a/kernel/dma/coherent.c b/kernel/dma/coherent.c
+index 25fc85a7aebe..0d919b596fa7 100644
+--- a/kernel/dma/coherent.c
++++ b/kernel/dma/coherent.c
+@@ -130,6 +130,7 @@ int dma_declare_coherent_memory(struct device *dev, phys_addr_t phys_addr,
+ 		dma_release_coherent_memory(mem);
+ 	return ret;
+ }
++EXPORT_SYMBOL_GPL(dma_declare_coherent_memory);
+ 
+ static void *__dma_alloc_from_coherent(struct device *dev,
+ 				       struct dma_coherent_mem *mem,
+-- 
+2.32.0
+

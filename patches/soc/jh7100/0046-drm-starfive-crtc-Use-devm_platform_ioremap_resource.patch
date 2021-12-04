@@ -1,0 +1,108 @@
+From 566b3ddde6031b870873be016a11536162bfd37b Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Mon, 20 Sep 2021 21:09:40 +0200
+Subject: [PATCH 46/59] drm/starfive: crtc: Use
+ devm_platform_ioremap_resource_byname
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ drivers/gpu/drm/starfive/starfive_drm_crtc.c | 28 +++++++-------------
+ drivers/gpu/drm/starfive/starfive_drm_lcdc.c | 10 -------
+ drivers/gpu/drm/starfive/starfive_drm_vpp.h  |  4 ---
+ 3 files changed, 9 insertions(+), 33 deletions(-)
+
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_crtc.c b/drivers/gpu/drm/starfive/starfive_drm_crtc.c
+index e761febada2c..ceddfb9506cf 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_crtc.c
++++ b/drivers/gpu/drm/starfive/starfive_drm_crtc.c
+@@ -22,20 +22,6 @@
+ #include <soc/starfive/vic7100.h>
+ //#include <video/sys_comm_regs.h>
+ 
+-struct resource_name {
+-	char name[10];
+-};
+-
+-static const struct resource_name mem_res_name[] = {
+-	{"lcdc"},
+-	{"vpp0"},
+-	{"vpp1"},
+-	{"vpp2"},
+-	{"clk"},
+-	{"rst"},
+-	{"sys"}
+-};
+-
+ static inline struct drm_encoder *
+ starfive_head_atom_get_encoder(struct starfive_crtc *sf_crtc)
+ {
+@@ -314,13 +300,14 @@ int starfive_crtc_create(struct drm_device *drm_dev,
+ 
+ static int starfive_crtc_get_memres(struct platform_device *pdev, struct starfive_crtc *sf_crtc)
+ {
+-	struct device *dev = &pdev->dev;
++	static const char *const mem_res_name[] = {
++		"lcdc", "vpp0", "vpp1", "vpp2", "clk", "rst", "sys"
++	};
+ 	int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(mem_res_name); i++) {
+-		const char *name = mem_res_name[i].name;
+-		struct resource *res = platform_get_resource_byname(pdev, IORESOURCE_MEM, name);
+-		void __iomem *regs = devm_ioremap_resource(dev, res);
++		const char *name = mem_res_name[i];
++		void __iomem *regs = devm_platform_ioremap_resource_byname(pdev, name);
+ 
+ 		if (IS_ERR(regs))
+ 			return PTR_ERR(regs);
+@@ -422,7 +409,10 @@ static int starfive_crtc_bind(struct device *dev, struct device *master, void *d
+ 
+ 	spin_lock_init(&crtcp->reg_lock);
+ 
+-	starfive_crtc_get_memres(pdev, crtcp);
++	ret = starfive_crtc_get_memres(pdev, crtcp);
++	if (ret)
++		return ret;
++
+ 	ret = starfive_parse_dt(dev, crtcp);
+ 
+ 	crtcp->pp_conn_lcdc = starfive_pp_get_2lcdc_id(crtcp);
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_lcdc.c b/drivers/gpu/drm/starfive/starfive_drm_lcdc.c
+index e3a7423c21f3..705118b2891b 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_lcdc.c
++++ b/drivers/gpu/drm/starfive/starfive_drm_lcdc.c
+@@ -7,16 +7,6 @@
+ #include "starfive_drm_lcdc.h"
+ #include "starfive_drm_vpp.h"
+ 
+-static const struct res_name mem_res_name[] = {
+-	{"lcdc"},
+-	{"vpp0"},
+-	{"vpp1"},
+-	{"vpp2"},
+-	{"clk"},
+-	{"rst"},
+-	{"sys"}
+-};
+-
+ static u32 sf_fb_clkread32(struct starfive_crtc *sf_crtc, u32 reg)
+ {
+ 	return ioread32(sf_crtc->base_clk + reg);
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_vpp.h b/drivers/gpu/drm/starfive/starfive_drm_vpp.h
+index 189bc820fc32..c5bd2e219a3a 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_vpp.h
++++ b/drivers/gpu/drm/starfive/starfive_drm_vpp.h
+@@ -40,10 +40,6 @@
+ //vout clk registers
+ #define CLK_LCDC_OCLK_CTRL	0x14
+ 
+-struct res_name {
+-	char name[10];
+-};
+-
+ enum PP_LCD_PATH {
+ 	SYS_BUS_OUTPUT = 0,
+ 	FIFO_OUTPUT = 1,
+-- 
+2.32.0
+

@@ -1,0 +1,133 @@
+From 70c5e93454e9cc51a1ca39268bfbba2b9059c45f Mon Sep 17 00:00:00 2001
+From: Emil Renner Berthing <kernel@esmil.dk>
+Date: Mon, 20 Sep 2021 23:13:38 +0200
+Subject: [PATCH 47/59] drm/starfive: Use clock api
+
+Signed-off-by: Emil Renner Berthing <kernel@esmil.dk>
+---
+ drivers/gpu/drm/starfive/starfive_drm_crtc.c | 18 +++++++++++++++++-
+ drivers/gpu/drm/starfive/starfive_drm_crtc.h |  4 +++-
+ drivers/gpu/drm/starfive/starfive_drm_vpp.c  | 13 +++++++------
+ drivers/gpu/drm/starfive/starfive_drm_vpp.h  |  5 -----
+ 4 files changed, 27 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_crtc.c b/drivers/gpu/drm/starfive/starfive_drm_crtc.c
+index ceddfb9506cf..362f17cd390e 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_crtc.c
++++ b/drivers/gpu/drm/starfive/starfive_drm_crtc.c
+@@ -330,12 +330,24 @@ static int starfive_crtc_get_memres(struct platform_device *pdev, struct starfiv
+ 			dev_err(&pdev->dev, "Could not match resource name\n");
+ 	}
+ 
+-	sf_crtc->topclk = ioremap(0x11800000, 0x10000);
+ 	sf_crtc->toprst = ioremap(0x11840000, 0x10000);
+ 
+ 	return 0;
+ }
+ 
++static int starfive_crtc_get_clks(struct platform_device *pdev, struct starfive_crtc *sf_crtc)
++{
++	struct clk_bulk_data clks[] = {
++		{ .id = "disp_axi" },
++		{ .id = "vout_src" },
++	};
++	int ret = devm_clk_bulk_get(&pdev->dev, ARRAY_SIZE(clks), clks);
++
++	sf_crtc->clk_disp_axi = clks[0].clk;
++	sf_crtc->clk_vout_src = clks[1].clk;
++	return ret;
++}
++
+ static int starfive_parse_dt(struct device *dev, struct starfive_crtc *sf_crtc)
+ {
+ 	int ret;
+@@ -413,6 +425,10 @@ static int starfive_crtc_bind(struct device *dev, struct device *master, void *d
+ 	if (ret)
+ 		return ret;
+ 
++	ret = starfive_crtc_get_clks(pdev, crtcp);
++	if (ret)
++		return ret;
++
+ 	ret = starfive_parse_dt(dev, crtcp);
+ 
+ 	crtcp->pp_conn_lcdc = starfive_pp_get_2lcdc_id(crtcp);
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_crtc.h b/drivers/gpu/drm/starfive/starfive_drm_crtc.h
+index f56c742c8eb7..de14e9fea8e0 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_crtc.h
++++ b/drivers/gpu/drm/starfive/starfive_drm_crtc.h
+@@ -44,7 +44,9 @@ struct starfive_crtc {
+ 	void __iomem	*base_vpp2;	// 0x120c0000
+ 	void __iomem	*base_lcdc;	// 0x12000000
+ 
+-	void __iomem	*topclk;	// 0x11800000, 0x10000
++	struct clk *clk_disp_axi;
++	struct clk *clk_vout_src;
++
+ 	void __iomem	*toprst;	// 0x11840000, 0x10000
+ 
+ 	int		lcdc_irq;
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_vpp.c b/drivers/gpu/drm/starfive/starfive_drm_vpp.c
+index 90fac1d9af95..dd832e1333d7 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_vpp.c
++++ b/drivers/gpu/drm/starfive/starfive_drm_vpp.c
+@@ -2,6 +2,7 @@
+ /*
+  * Copyright (C) 2021 StarFive Technology Co., Ltd.
+  */
++#include <linux/clk.h>
+ #include <linux/module.h>
+ #include <linux/delay.h>
+ #include "starfive_drm_vpp.h"
+@@ -739,8 +740,8 @@ void dsitx_vout_init(struct starfive_crtc *sf_crtc)
+ 	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 0);
+ 	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, BIT(24), BIT(24));
+ 	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 24, 0);
+-	sf_set_clear(sf_crtc->topclk, clk_disp_axi_ctrl_REG, BIT(31), BIT(31));
+-	sf_set_clear(sf_crtc->topclk, clk_vout_src_ctrl_REG, BIT(31), BIT(31));
++	clk_prepare_enable(sf_crtc->clk_disp_axi);
++	clk_prepare_enable(sf_crtc->clk_vout_src);
+ 	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, 0, BIT(23));
+ 	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 1);
+ 	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, 0, BIT(24));
+@@ -770,8 +771,8 @@ void vout_reset(struct starfive_crtc *sf_crtc)
+ 
+ 	iowrite32(0xFFFFFFFF, sf_crtc->base_rst);
+ 
+-	sf_set_clear(sf_crtc->topclk, clk_disp_axi_ctrl_REG, BIT(31), BIT(31));
+-	sf_set_clear(sf_crtc->topclk, clk_vout_src_ctrl_REG, BIT(31), BIT(31));
++	clk_prepare_enable(sf_crtc->clk_disp_axi);
++	clk_prepare_enable(sf_crtc->clk_vout_src);
+ 
+ 	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, 0, BIT(23));
+ 	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 1);
+@@ -807,8 +808,8 @@ void vout_disable(struct starfive_crtc *sf_crtc)
+ {
+ 	iowrite32(0xFFFFFFFF, sf_crtc->base_rst);
+ 
+-	sf_set_clear(sf_crtc->topclk, clk_disp_axi_ctrl_REG, 0, BIT(31));
+-	sf_set_clear(sf_crtc->topclk, clk_vout_src_ctrl_REG, 0, BIT(31));
++	clk_disable_unprepare(sf_crtc->clk_disp_axi);
++	clk_disable_unprepare(sf_crtc->clk_vout_src);
+ 
+ 	sf_set_clear(sf_crtc->toprst, rstgen_assert1_REG, BIT(23), BIT(23));
+ 	sf_reg_status_wait(sf_crtc->toprst, rstgen_status1_REG, 23, 0);
+diff --git a/drivers/gpu/drm/starfive/starfive_drm_vpp.h b/drivers/gpu/drm/starfive/starfive_drm_vpp.h
+index c5bd2e219a3a..c67d10720988 100644
+--- a/drivers/gpu/drm/starfive/starfive_drm_vpp.h
++++ b/drivers/gpu/drm/starfive/starfive_drm_vpp.h
+@@ -162,11 +162,6 @@ struct pp_mode {
+ #define PP_COEF_B1		0
+ #define PP_OFFSET_1		16
+ 
+-//for vout reg
+-#define CLKGEN_BASE_ADDR	0x11800000
+-
+-#define clk_disp_axi_ctrl_REG			0x1C0
+-#define clk_vout_src_ctrl_REG			0x1B4
+ #define rstgen_assert1_REG			0x4
+ #define rstgen_status1_REG			0x14
+ #define vout_rstgen_assert0_REG			0x0
+-- 
+2.32.0
+
